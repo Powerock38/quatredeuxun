@@ -1,4 +1,4 @@
-# Quatre-Deux-Un
+# [Quatre-Deux-Un](https://powerock.itch.io/quatredeuxun)
 
 Throw three dices
 Try to make combinations

@@ -75,6 +75,7 @@ pub fn roll_dices(
     mut commands: Commands,
     last_combination: Option<Res<LastCombination>>,
     button_input: Res<ButtonInput<MouseButton>>,
+    touches: Res<Touches>,
     mut query: Query<(
         &Dice,
         &mut Transform,
@@ -85,7 +86,7 @@ pub fn roll_dices(
 ) {
     let mut rng = thread_rng();
 
-    if button_input.just_pressed(MouseButton::Left) {
+    if button_input.just_pressed(MouseButton::Left) || touches.any_just_pressed() {
         commands.remove_resource::<LastCombination>();
 
         for (dice, mut transform, mut angular_velocity, mut linear_velocity) in &mut query {
