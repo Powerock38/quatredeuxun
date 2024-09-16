@@ -26,26 +26,34 @@ fn roll_start(i: usize) -> Vec3 {
 
 #[derive(Component)]
 pub struct Dice {
+    nb_faces: u8,
     i: usize,
 }
 
 impl Dice {
-    pub fn face_normals(&self) -> [Vec3; 6] {
-        [
-            Vec3::new(0.0, 1.0, 0.0),  // Top face
-            Vec3::new(1.0, 0.0, 0.0),  // Right face
-            Vec3::new(0.0, 0.0, -1.0), // Back face
-            Vec3::new(0.0, 0.0, 1.0),  // Front face
-            Vec3::new(-1.0, 0.0, 0.0), // Left face
-            Vec3::new(0.0, -1.0, 0.0), // Bottom face
-        ]
+    pub fn new_6(i: usize) -> Self {
+        Self { nb_faces: 6, i }
+    }
+
+    pub fn face_normals(&self) -> Vec<Vec3> {
+        match self.nb_faces {
+            6 => vec![
+                Vec3::new(0.0, 1.0, 0.0),  // Top face
+                Vec3::new(1.0, 0.0, 0.0),  // Right face
+                Vec3::new(0.0, 0.0, -1.0), // Back face
+                Vec3::new(0.0, 0.0, 1.0),  // Front face
+                Vec3::new(-1.0, 0.0, 0.0), // Left face
+                Vec3::new(0.0, -1.0, 0.0), // Bottom face
+            ],
+            _ => panic!("Unsupported number of faces"),
+        }
     }
 }
 
 pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
     for i in 0..NB_DICES {
         commands.spawn((
-            Dice { i },
+            Dice::new_6(i),
             RigidBody::Dynamic,
             Collider::cuboid(DICE_SIZE, DICE_SIZE, DICE_SIZE),
             LinearDamping(0.3),
@@ -66,7 +74,7 @@ pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
 pub fn roll_dices(
     mut commands: Commands,
     last_combination: Option<Res<LastCombination>>,
-    button_input: Res<ButtonInput<KeyCode>>,
+    button_input: Res<ButtonInput<MouseButton>>,
     mut query: Query<(
         &Dice,
         &mut Transform,
@@ -77,7 +85,7 @@ pub fn roll_dices(
 ) {
     let mut rng = thread_rng();
 
-    if button_input.just_pressed(KeyCode::KeyR) {
+    if button_input.just_pressed(MouseButton::Left) {
         commands.remove_resource::<LastCombination>();
 
         for (dice, mut transform, mut angular_velocity, mut linear_velocity) in &mut query {

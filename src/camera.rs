@@ -58,15 +58,12 @@ pub struct FlyCam;
 
 /// Grabs/ungrabs mouse cursor
 fn toggle_grab_cursor(window: &mut Window) {
-    match window.cursor.grab_mode {
-        CursorGrabMode::None => {
-            window.cursor.grab_mode = CursorGrabMode::Confined;
-            window.cursor.visible = false;
-        }
-        _ => {
-            window.cursor.grab_mode = CursorGrabMode::None;
-            window.cursor.visible = true;
-        }
+    if window.cursor.grab_mode == CursorGrabMode::None {
+        window.cursor.grab_mode = CursorGrabMode::Confined;
+        window.cursor.visible = false;
+    } else {
+        window.cursor.grab_mode = CursorGrabMode::None;
+        window.cursor.visible = true;
     }
 }
 
@@ -87,23 +84,20 @@ fn player_move(
             let right = Vec3::new(local_z.z, 0., -local_z.x);
 
             for key in keys.get_pressed() {
-                match window.cursor.grab_mode {
-                    CursorGrabMode::None => (),
-                    _ => {
-                        let key = *key;
-                        if key == key_bindings.move_forward {
-                            velocity += forward;
-                        } else if key == key_bindings.move_backward {
-                            velocity -= forward;
-                        } else if key == key_bindings.move_left {
-                            velocity -= right;
-                        } else if key == key_bindings.move_right {
-                            velocity += right;
-                        } else if key == key_bindings.move_ascend {
-                            velocity += Vec3::Y;
-                        } else if key == key_bindings.move_descend {
-                            velocity -= Vec3::Y;
-                        }
+                if window.cursor.grab_mode != CursorGrabMode::None {
+                    let key = *key;
+                    if key == key_bindings.move_forward {
+                        velocity += forward;
+                    } else if key == key_bindings.move_backward {
+                        velocity -= forward;
+                    } else if key == key_bindings.move_left {
+                        velocity -= right;
+                    } else if key == key_bindings.move_right {
+                        velocity += right;
+                    } else if key == key_bindings.move_ascend {
+                        velocity += Vec3::Y;
+                    } else if key == key_bindings.move_descend {
+                        velocity -= Vec3::Y;
                     }
                 }
             }
@@ -129,14 +123,11 @@ fn player_look(
         for mut transform in &mut query {
             for ev in state.reader_motion.read(&motion) {
                 let (mut yaw, mut pitch, _) = transform.rotation.to_euler(EulerRot::YXZ);
-                match window.cursor.grab_mode {
-                    CursorGrabMode::None => (),
-                    _ => {
-                        // Using smallest of height or width ensures equal vertical and horizontal sensitivity
-                        let window_scale = window.height().min(window.width());
-                        pitch -= (settings.sensitivity * ev.delta.y * window_scale).to_radians();
-                        yaw -= (settings.sensitivity * ev.delta.x * window_scale).to_radians();
-                    }
+                if window.cursor.grab_mode != CursorGrabMode::None {
+                    // Using smallest of height or width ensures equal vertical and horizontal sensitivity
+                    let window_scale = window.height().min(window.width());
+                    pitch -= (settings.sensitivity * ev.delta.y * window_scale).to_radians();
+                    yaw -= (settings.sensitivity * ev.delta.x * window_scale).to_radians();
                 }
 
                 pitch = pitch.clamp(-1.54, 1.54);

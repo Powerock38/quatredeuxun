@@ -31,12 +31,11 @@ impl Combination {
         }
     }
 
-    pub fn value(&self) -> u8 {
+    pub fn score(&self) -> u8 {
         match self {
             Combination::QuatreCentVingtEtUn => 8,
-            Combination::Ace(dice) => *dice,
             Combination::Strike(dice) if *dice == 1 => 7,
-            Combination::Strike(dice) => *dice,
+            Combination::Ace(dice) | Combination::Strike(dice) => *dice,
             Combination::Serie(_) => 2,
             Combination::Any(_, _, _) => 1,
             Combination::Nenette => 0,
@@ -59,7 +58,7 @@ impl Ord for Combination {
         let mut ord = unsafe { self.discriminant().cmp(&other.discriminant()) };
 
         if ord == Ordering::Equal {
-            ord = self.value().cmp(&other.value());
+            ord = self.score().cmp(&other.score());
         }
 
         if ord == Ordering::Equal {

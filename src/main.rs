@@ -14,7 +14,18 @@ fn main() {
     App::new()
         // Enable physics
         .add_plugins((
-            DefaultPlugins,
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        fit_canvas_to_parent: true,
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    meta_check: bevy::asset::AssetMetaCheck::Never,
+                    ..default()
+                }),
             PhysicsPlugins::default(),
             UiPlugin,
             camera::FlyCamPlugin,
