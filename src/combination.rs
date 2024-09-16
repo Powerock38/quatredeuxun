@@ -1,7 +1,9 @@
 use core::fmt;
 use std::cmp::Ordering;
 
-use crate::DiceResult;
+use crate::dice::NB_DICES;
+
+pub type DiceResult = u8;
 
 #[derive(PartialEq, Eq)]
 #[repr(u8)]
@@ -15,8 +17,9 @@ pub enum Combination {
 }
 
 impl Combination {
-    pub fn get(high_dice: DiceResult, mid_dice: DiceResult, low_dice: DiceResult) -> Self {
-        assert!(high_dice >= mid_dice && mid_dice >= low_dice);
+    pub fn get(results: &mut [DiceResult; NB_DICES]) -> Self {
+        results.sort_unstable();
+        let [low_dice, mid_dice, high_dice] = *results;
 
         match (high_dice, mid_dice, low_dice) {
             (4, 2, 1) => Combination::QuatreCentVingtEtUn,
@@ -41,7 +44,7 @@ impl Combination {
     }
 
     unsafe fn discriminant(&self) -> u8 {
-        unsafe { *(self as *const Self as *const u8) }
+        *std::ptr::from_ref::<Self>(self).cast::<u8>()
     }
 }
 
@@ -79,10 +82,10 @@ impl fmt::Display for Combination {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Combination::QuatreCentVingtEtUn => write!(f, "421 !!!"),
-            Combination::Ace(dice) => write!(f, "{} purs", dice),
-            Combination::Strike(dice) => write!(f, "Brelan de {}", dice),
+            Combination::Ace(dice) => write!(f, "{dice} purs"),
+            Combination::Strike(dice) => write!(f, "Brelan de {dice}"),
             Combination::Serie(dice) => write!(f, "Suite {} {} {}", dice, dice - 1, dice - 2),
-            Combination::Any(a, b, c) => write!(f, "{}{}{}", a, b, c),
+            Combination::Any(a, b, c) => write!(f, "{a}{b}{c}"),
             Combination::Nenette => write!(f, "Nenette !"),
         }
     }
