@@ -10,8 +10,8 @@ use crate::ui::LastCombination;
 
 pub const NB_DICES: usize = 3;
 const MAX_ANGULAR_SPEED: f32 = 10.0;
-const MIN_FORCE: f32 = 500.0;
-const MAX_FORCE: f32 = 1000.0;
+const MIN_FORCE: f32 = 20.0;
+const MAX_FORCE: f32 = 80.0;
 const MIN_MOVEMENT: f32 = 0.3;
 
 #[derive(Component)]
@@ -99,13 +99,12 @@ pub fn roll_dice(
     commands.remove_resource::<LastCombination>();
     commands.entity(entity).remove::<LockedAxes>();
 
-    let roll_start = transform.translation;
-    let target = trigger.event().0;
-    let roll_direction = (target - roll_start).normalize();
+    let trajectory = trigger.event().0 - transform.translation;
 
     let mut rng = thread_rng();
 
-    let force = roll_direction * rng.gen_range(MIN_FORCE..MAX_FORCE);
+    let force = trajectory * rng.gen_range(MIN_FORCE..MAX_FORCE);
+
     linear_velocity.0 = force * time.delta_seconds();
 
     angular_velocity.0 = Vec3::new(
