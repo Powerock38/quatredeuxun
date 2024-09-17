@@ -1,12 +1,17 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use dice::{roll_dices, spawn_dices, teleport_fallen_dices};
+use dice::{
+    analyze_dices, filter_collisions, highlight_selected_dice, pickup_fallen_dices, raycast_dices,
+    spawn_dices,
+};
+use player::{click_spawns_raycast, spawn_camera};
 use table::setup;
 use ui::UiPlugin;
 
-mod camera;
 mod combination;
 mod dice;
+mod flycam;
+mod player;
 mod table;
 mod ui;
 
@@ -28,9 +33,19 @@ fn main() {
                 }),
             PhysicsPlugins::default(),
             UiPlugin,
-            camera::FlyCamPlugin,
+            flycam::FlyCamPlugin,
         ))
-        .add_systems(Startup, (setup, spawn_dices))
-        .add_systems(Update, (roll_dices, teleport_fallen_dices))
+        .add_systems(Startup, (setup, spawn_camera, spawn_dices))
+        .add_systems(
+            Update,
+            (
+                pickup_fallen_dices,
+                click_spawns_raycast,
+                raycast_dices,
+                analyze_dices,
+                highlight_selected_dice,
+            ),
+        )
+        .add_systems(PostProcessCollisions, filter_collisions)
         .run();
 }
