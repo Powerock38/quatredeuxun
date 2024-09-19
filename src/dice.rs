@@ -16,16 +16,16 @@ const MIN_MOVEMENT: f32 = 0.3;
 #[derive(Component)]
 pub struct Dice {
     i: usize,
-    pub size: f32,
+    size: f32,
     nb_faces: u8,
 }
 
 impl Dice {
     pub fn new_6(i: usize) -> Self {
         Self {
-            nb_faces: 6,
-            size: 1.0,
             i,
+            size: 1.0,
+            nb_faces: 6,
         }
     }
 
