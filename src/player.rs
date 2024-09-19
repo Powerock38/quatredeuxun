@@ -3,7 +3,7 @@ use bevy::prelude::*;
 
 use crate::table::TABLE_RADIUS;
 
-pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, TABLE_RADIUS * 1.5);
+pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 2.5, TABLE_RADIUS * 1.0);
 
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((

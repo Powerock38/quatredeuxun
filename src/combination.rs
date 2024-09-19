@@ -1,44 +1,68 @@
+use bevy::prelude::*;
 use core::fmt;
 use std::cmp::Ordering;
 
-use crate::dice::NB_DICES;
+use crate::dice::MIN_NB_DICES;
 
 pub type DiceResult = u8;
+
+#[derive(Resource)]
+pub struct LastCombination {
+    pub combination: Combination,
+    pub enough: bool,
+}
+
+//TODO: 421 with more than 3 dices is easy to get
+// add full house, 2 pairs, 1 pair, small straight
+// high roll: all dices > 3, low roll < 3   Highest roll: > 6 (with special dices)
 
 #[derive(PartialEq, Eq)]
 #[repr(u8)]
 pub enum Combination {
-    Nenette = 0,
-    Any(DiceResult, DiceResult, DiceResult),
-    Serie(DiceResult), // highest dice in the serie
+    Any(Vec<DiceResult>) = 0,
+    Straight(DiceResult, usize), // highest dice in the serie, length
     Strike(DiceResult),
     Ace(DiceResult), // can't be 1
-    QuatreCentVingtEtUn,
+    FourTwoOne,
 }
 
 impl Combination {
-    pub fn get(results: &mut [DiceResult; NB_DICES]) -> Self {
-        results.sort_unstable();
-        let [low_dice, mid_dice, high_dice] = *results;
+    pub fn get(mut results: Vec<DiceResult>) -> Self {
+        assert!(results.len() >= MIN_NB_DICES);
 
-        match (high_dice, mid_dice, low_dice) {
-            (4, 2, 1) => Combination::QuatreCentVingtEtUn,
-            (2, 2, 1) => Combination::Nenette,
-            (a, b, c) if a == b && b == c => Combination::Strike(high_dice),
-            (x, 1, 1) => Combination::Ace(x),
-            (h, m, l) if l == m - 1 && m == h - 1 => Combination::Serie(h),
-            _ => Combination::Any(high_dice, mid_dice, low_dice),
+        results.sort_unstable();
+
+        // Check for a "Strike" (all dice are the same)
+        if results.iter().all(|&d| d == results[0]) {
+            return Combination::Strike(results[0]);
         }
+
+        // Check for an "Ace" (any dice + all 1)
+        if results.iter().filter(|&d| *d == 1).count() == results.len() - 1 {
+            return Combination::Ace(*results.last().unwrap());
+        }
+
+        // Check for a "Straight" (consecutive sequence)
+        if results.windows(2).all(|w| w[1] == w[0] + 1) {
+            return Combination::Straight(*results.last().unwrap(), results.len());
+        }
+
+        // 421
+        if results.contains(&4) && results.contains(&2) && results.contains(&1) {
+            return Combination::FourTwoOne;
+        }
+
+        // Default to "Any" combination
+        Combination::Any(results)
     }
 
     pub fn score(&self) -> u8 {
         match self {
-            Combination::QuatreCentVingtEtUn => 8,
+            Combination::FourTwoOne => 8,
             Combination::Strike(dice) if *dice == 1 => 7,
             Combination::Ace(dice) | Combination::Strike(dice) => *dice,
-            Combination::Serie(_) => 2,
-            Combination::Any(_, _, _) => 1,
-            Combination::Nenette => 0,
+            Combination::Straight(_, _) => 2,
+            Combination::Any(_) => 1,
         }
     }
 
@@ -55,16 +79,16 @@ impl PartialOrd for Combination {
 
 impl Ord for Combination {
     fn cmp(&self, other: &Self) -> Ordering {
-        let mut ord = unsafe { self.discriminant().cmp(&other.discriminant()) };
+        let mut ord = self.score().cmp(&other.score());
 
         if ord == Ordering::Equal {
-            ord = self.score().cmp(&other.score());
+            ord = unsafe { self.discriminant().cmp(&other.discriminant()) };
         }
 
         if ord == Ordering::Equal {
             ord = match (self, other) {
-                (Combination::Any(a1, b1, c1), Combination::Any(a2, b2, c2)) => {
-                    (a1 + b1 + c1).cmp(&(a2 + b2 + c2))
+                (Combination::Any(a), Combination::Any(b)) => {
+                    a.iter().sum::<DiceResult>().cmp(&b.iter().sum())
                 }
                 (Combination::Strike(dice), Combination::Strike(other_dice)) => {
                     dice.cmp(other_dice)
@@ -80,12 +104,23 @@ impl Ord for Combination {
 impl fmt::Display for Combination {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Combination::QuatreCentVingtEtUn => write!(f, "421 !!!"),
-            Combination::Ace(dice) => write!(f, "{dice} purs"),
-            Combination::Strike(dice) => write!(f, "Brelan de {dice}"),
-            Combination::Serie(dice) => write!(f, "Suite {} {} {}", dice, dice - 1, dice - 2),
-            Combination::Any(a, b, c) => write!(f, "{a}{b}{c}"),
-            Combination::Nenette => write!(f, "Nenette !"),
+            Combination::FourTwoOne => write!(f, "Four-Two-One!"),
+            Combination::Ace(dice) => write!(f, "{dice} Ace"),
+            Combination::Strike(dice) => write!(f, "{dice} Strike"),
+            Combination::Straight(dice, len) => write!(f, "Straight {}", {
+                (0..*len)
+                    .rev()
+                    .map(|i| (dice - i as u8).to_string())
+                    .collect::<Vec<String>>()
+                    .join(",")
+            }),
+            Combination::Any(dices) => {
+                write!(
+                    f,
+                    "{}",
+                    dices.iter().map(ToString::to_string).collect::<String>()
+                )
+            }
         }
     }
 }

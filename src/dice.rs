@@ -2,23 +2,23 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use rand::prelude::*;
 
-use crate::combination::{Combination, DiceResult};
+use crate::combination::{Combination, DiceResult, LastCombination};
 use crate::game::{ToBeat, Tries};
 use crate::player::PLAYER_POSITION;
 use crate::table::TablePart;
-use crate::ui::LastCombination;
 
 pub const NB_DICES: usize = 3;
+pub const MIN_NB_DICES: usize = 2;
 const MAX_ANGULAR_SPEED: f32 = 10.0;
-const MIN_FORCE: f32 = 20.0;
-const MAX_FORCE: f32 = 80.0;
+const MIN_FORCE: f32 = 50.0;
+const MAX_FORCE: f32 = 100.0;
 const MIN_MOVEMENT: f32 = 0.3;
 
 #[derive(Component)]
 pub struct Dice {
     i: usize,
     size: f32,
-    nb_faces: u8,
+    face_normals: Vec<Vec3>,
 }
 
 impl Dice {
@@ -26,19 +26,7 @@ impl Dice {
         Self {
             i,
             size: 1.0,
-            nb_faces: 6,
-        }
-    }
-
-    pub fn in_hand_transform(&self) -> Transform {
-        Transform::from_translation(
-            PLAYER_POSITION + Vec3::new((self.i as f32 - 1.0) * self.size * 1.5, -6.0, -2.5),
-        )
-    }
-
-    pub fn face_normals(&self) -> Vec<Vec3> {
-        match self.nb_faces {
-            6 => vec![
+            face_normals: vec![
                 Vec3::new(0.0, 1.0, 0.0),  // Top face
                 Vec3::new(1.0, 0.0, 0.0),  // Right face
                 Vec3::new(0.0, 0.0, -1.0), // Back face
@@ -46,8 +34,18 @@ impl Dice {
                 Vec3::new(-1.0, 0.0, 0.0), // Left face
                 Vec3::new(0.0, -1.0, 0.0), // Bottom face
             ],
-            _ => panic!("Unsupported number of faces"),
         }
+    }
+
+    pub fn in_hand_transform(&self) -> Transform {
+        Transform::from_translation(
+            PLAYER_POSITION
+                + Vec3::new(
+                    (self.i as f32 - NB_DICES as f32 / 2.0 + 0.5) * self.size,
+                    -6.0,
+                    -0.2,
+                ),
+        )
     }
 }
 
@@ -82,21 +80,22 @@ pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
     for i in 0..NB_DICES {
         let dice = Dice::new_6(i);
 
-        commands
+        let entity = commands
             .spawn((
-                InHandBundle::default(),
                 RigidBody::Dynamic,
                 Collider::cuboid(dice.size, dice.size, dice.size),
                 LinearDamping(0.3),
                 SceneBundle {
                     scene: assets_server.load(GltfAssetLabel::Scene(0).from_asset("dice.glb")),
-                    transform: dice.in_hand_transform(),
                     ..default()
                 },
                 dice,
             ))
             .observe(on_roll_dice)
-            .observe(on_pickup_dice);
+            .observe(on_pickup_dice)
+            .id();
+
+        commands.trigger_targets(PickupDice, entity);
     }
 }
 
@@ -146,27 +145,25 @@ pub fn analyze_dices(
     last_combination: Option<Res<LastCombination>>,
     mut tries: ResMut<Tries>,
     to_beat: Res<ToBeat>,
-    mut q_dices: Query<
-        (&Dice, &Transform, &mut AngularVelocity, &mut LinearVelocity),
+    q_dices_on_table: Query<
+        (&Dice, &Transform, &AngularVelocity, &LinearVelocity),
         Without<InHand>,
     >,
+    q_dices_in_hand: Query<(), (With<Dice>, With<InHand>)>,
 ) {
     if last_combination.is_none() {
-        let results: &mut [u8; NB_DICES] = &mut [0; NB_DICES];
-        let mut nb_results = 0;
+        let nb_dices_total = q_dices_on_table.iter().count() + q_dices_in_hand.iter().count();
+        let mut results = vec![];
 
-        for (dice, transform, mut angular_velocity, mut linear_velocity) in &mut q_dices {
+        for (dice, transform, angular_velocity, linear_velocity) in &q_dices_on_table {
             if linear_velocity.0.length() < MIN_MOVEMENT
                 && angular_velocity.0.length() < MIN_MOVEMENT
             {
-                linear_velocity.0 = Vec3::ZERO;
-                angular_velocity.0 = Vec3::ZERO;
-
                 // Determine which face is most aligned with the world up vector
                 let mut max_dot = -1.0;
                 let mut result = 0;
 
-                for (i, normal) in dice.face_normals().iter().enumerate() {
+                for (i, normal) in dice.face_normals.iter().enumerate() {
                     // Rotate the face normal to the current orientation
                     let transformed_normal = transform.rotation * *normal;
 
@@ -180,23 +177,27 @@ pub fn analyze_dices(
                     }
                 }
 
-                results[dice.i] = result as DiceResult;
-                nb_results += 1;
+                results.push(result as DiceResult);
             }
         }
 
-        if nb_results == NB_DICES {
+        if results.len() == nb_dices_total {
             let combination = Combination::get(results);
 
             // Update the player's tries
             tries.0 += 1;
+
+            let enough = combination >= to_beat.combination;
 
             if combination >= to_beat.combination || tries.0 >= to_beat.tries {
                 commands.insert_resource(ToBeat::roll());
                 tries.0 = 0;
             }
 
-            commands.insert_resource(LastCombination(combination));
+            commands.insert_resource(LastCombination {
+                combination,
+                enough,
+            });
         }
     }
 }
@@ -263,7 +264,7 @@ pub fn raycast_dices(
     }
 }
 
-pub fn manage_selection_around_dice(
+pub fn manage_selected_dice_animation(
     selected_dice: Option<Res<SelectedDice>>,
     mut existed: Local<bool>,
     mut q_dices_in_hand: Query<(&mut AngularVelocity, &mut Rotation), (With<Dice>, With<InHand>)>,

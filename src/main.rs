@@ -1,12 +1,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use dice::{
-    analyze_dices, filter_collisions_in_hand, manage_selection_around_dice, pickup_fallen_dices,
+    analyze_dices, filter_collisions_in_hand, manage_selected_dice_animation, pickup_fallen_dices,
     raycast_dices, spawn_dices,
 };
 use game::{ToBeat, Tries};
 use player::{click_spawns_raycast, spawn_camera};
-use table::setup;
+use table::{punch_table, setup};
 use ui::UiPlugin;
 
 mod combination;
@@ -44,7 +44,8 @@ fn main() {
                 click_spawns_raycast,
                 raycast_dices,
                 analyze_dices,
-                manage_selection_around_dice,
+                manage_selected_dice_animation,
+                punch_table,
             ),
         )
         .add_systems(PostProcessCollisions, filter_collisions_in_hand)

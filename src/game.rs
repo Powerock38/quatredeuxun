@@ -20,16 +20,16 @@ impl ToBeat {
             tries += 1;
 
             let mut rng = thread_rng();
-            let mut dices = [0; NB_DICES];
+            let mut dices = vec![];
 
-            for dice in &mut dices {
-                *dice = rng.gen_range(1..=6);
+            for _ in 0..NB_DICES {
+                dices.push(rng.gen_range(1..=6));
             }
 
-            let c = Combination::get(&mut dices);
+            let c = Combination::get(dices);
 
             match c {
-                Combination::Any(_, _, _) | Combination::Nenette => continue,
+                Combination::Any(_) => continue,
                 _ => break c,
             }
         };
