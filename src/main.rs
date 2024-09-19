@@ -1,8 +1,8 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use dice::{
-    analyze_dices, filter_collisions, highlight_selected_dice, pickup_fallen_dices, raycast_dices,
-    spawn_dices,
+    analyze_dices, filter_collisions_in_hand, manage_selection_around_dice, pickup_fallen_dices,
+    raycast_dices, spawn_dices,
 };
 use player::{click_spawns_raycast, spawn_camera};
 use table::setup;
@@ -17,7 +17,6 @@ mod ui;
 
 fn main() {
     App::new()
-        // Enable physics
         .add_plugins((
             DefaultPlugins
                 .set(WindowPlugin {
@@ -43,9 +42,9 @@ fn main() {
                 click_spawns_raycast,
                 raycast_dices,
                 analyze_dices,
-                highlight_selected_dice,
+                manage_selection_around_dice,
             ),
         )
-        .add_systems(PostProcessCollisions, filter_collisions)
+        .add_systems(PostProcessCollisions, filter_collisions_in_hand)
         .run();
 }

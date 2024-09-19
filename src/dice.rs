@@ -1,5 +1,4 @@
 use avian3d::prelude::*;
-use bevy::color::palettes::tailwind::RED_300;
 use bevy::prelude::*;
 use rand::prelude::*;
 
@@ -61,7 +60,22 @@ pub struct RollDice(pub Vec3);
 pub struct PickupDice;
 
 #[derive(Component)]
-pub struct SelectionLight;
+pub struct InHand;
+
+#[derive(Bundle)]
+struct InHandBundle {
+    in_hand: InHand,
+    locked_axes: LockedAxes,
+}
+
+impl Default for InHandBundle {
+    fn default() -> Self {
+        Self {
+            in_hand: InHand,
+            locked_axes: LockedAxes::TRANSLATION_LOCKED,
+        }
+    }
+}
 
 pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
     for i in 0..NB_DICES {
@@ -69,11 +83,10 @@ pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
 
         commands
             .spawn((
-                LockedAxes::ALL_LOCKED,
+                InHandBundle::default(),
                 RigidBody::Dynamic,
                 Collider::cuboid(dice.size, dice.size, dice.size),
                 LinearDamping(0.3),
-                AngularDamping(0.3),
                 SceneBundle {
                     scene: assets_server.load(GltfAssetLabel::Scene(0).from_asset("dice.glb")),
                     transform: dice.in_hand_transform(),
@@ -81,12 +94,12 @@ pub fn spawn_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
                 },
                 dice,
             ))
-            .observe(roll_dice)
-            .observe(pickup_dice);
+            .observe(on_roll_dice)
+            .observe(on_pickup_dice);
     }
 }
 
-pub fn roll_dice(
+pub fn on_roll_dice(
     trigger: Trigger<RollDice>,
     mut commands: Commands,
     mut q_dices: Query<(&Transform, &mut AngularVelocity, &mut LinearVelocity), With<Dice>>,
@@ -95,16 +108,15 @@ pub fn roll_dice(
     let entity = trigger.entity();
     let (transform, mut angular_velocity, mut linear_velocity) = q_dices.get_mut(entity).unwrap();
 
-    // Roll the dice
+    // Release the dice from the hand
     commands.remove_resource::<LastCombination>();
-    commands.entity(entity).remove::<LockedAxes>();
+    commands.entity(entity).remove::<InHandBundle>();
 
-    let trajectory = trigger.event().0 - transform.translation;
-
+    // Roll the dice
     let mut rng = thread_rng();
 
+    let trajectory = trigger.event().0 - transform.translation;
     let force = trajectory * rng.gen_range(MIN_FORCE..MAX_FORCE);
-
     linear_velocity.0 = force * time.delta_seconds();
 
     angular_velocity.0 = Vec3::new(
@@ -114,7 +126,7 @@ pub fn roll_dice(
     );
 }
 
-pub fn pickup_dice(
+pub fn on_pickup_dice(
     trigger: Trigger<PickupDice>,
     mut commands: Commands,
     mut q_dices: Query<(&Dice, &mut Transform)>,
@@ -122,7 +134,7 @@ pub fn pickup_dice(
     let entity = trigger.entity();
     let (dice, mut transform) = q_dices.get_mut(entity).unwrap();
 
-    commands.entity(entity).insert(LockedAxes::ALL_LOCKED);
+    commands.entity(entity).insert(InHandBundle::default());
     *transform = dice.in_hand_transform();
 
     commands.insert_resource(SelectedDice(entity));
@@ -133,7 +145,7 @@ pub fn analyze_dices(
     last_combination: Option<Res<LastCombination>>,
     mut q_dices: Query<
         (&Dice, &Transform, &mut AngularVelocity, &mut LinearVelocity),
-        Without<LockedAxes>,
+        Without<InHand>,
     >,
 ) {
     if last_combination.is_none() {
@@ -186,9 +198,9 @@ pub fn pickup_fallen_dices(mut commands: Commands, query: Query<(Entity, &Transf
     }
 }
 
-pub fn filter_collisions(
+pub fn filter_collisions_in_hand(
     mut collisions: ResMut<Collisions>,
-    query: Query<(), (With<Dice>, With<LockedAxes>)>,
+    query: Query<(), (With<Dice>, With<InHand>)>,
 ) {
     collisions
         .retain(|contacts| !query.contains(contacts.entity1) && !query.contains(contacts.entity2));
@@ -197,8 +209,8 @@ pub fn filter_collisions(
 pub fn raycast_dices(
     mut commands: Commands,
     q_rays: Query<(Entity, &RayCaster, &RayHits)>,
-    q_dices_in_hand: Query<Entity, (With<Dice>, With<LockedAxes>)>,
-    q_dices_on_table: Query<(), (With<Dice>, Without<LockedAxes>)>,
+    q_dices_in_hand: Query<Entity, (With<Dice>, With<InHand>)>,
+    q_dices_on_table: Query<(), (With<Dice>, Without<InHand>)>,
     q_table: Query<(), With<TablePart>>,
     selected_dice: Option<Res<SelectedDice>>,
     last_combination: Option<Res<LastCombination>>,
@@ -217,7 +229,7 @@ pub fn raycast_dices(
                 break;
             }
 
-            // Click table
+            // Click table to roll the dices
             if q_table.get(hit.entity).is_ok() {
                 if let Some(entity) = selected_dice.as_ref().map(|selected_dice| selected_dice.0) {
                     let point = ray.origin + *ray.direction * hit.time_of_impact;
@@ -239,46 +251,31 @@ pub fn raycast_dices(
     }
 }
 
-pub fn highlight_selected_dice(
-    mut commands: Commands,
+pub fn manage_selection_around_dice(
     selected_dice: Option<Res<SelectedDice>>,
     mut existed: Local<bool>,
-    q_dices_in_hand: Query<&Dice, With<LockedAxes>>,
-    q_selection_light: Query<Entity, With<SelectionLight>>,
+    mut q_dices_in_hand: Query<(&mut AngularVelocity, &mut Rotation), (With<Dice>, With<InHand>)>,
 ) {
+    // Closure to reset the dice states
+    let mut reset_dice_states = || {
+        for (mut angular_velocity, mut rotation) in &mut q_dices_in_hand {
+            angular_velocity.0 = Vec3::ZERO;
+            *rotation = Rotation::default();
+        }
+    };
+
     if let Some(selected_dice) = selected_dice {
         *existed = true;
 
         if selected_dice.is_added() || selected_dice.is_changed() {
-            for selection_light in &q_selection_light {
-                commands.entity(selection_light).despawn();
+            reset_dice_states();
+
+            if let Ok((mut angular_velocity, _)) = q_dices_in_hand.get_mut(selected_dice.0) {
+                angular_velocity.0 = Vec3::splat(0.5);
             }
-
-            let entity = selected_dice.0;
-
-            let dice = q_dices_in_hand.get(entity).unwrap();
-
-            commands.entity(entity).with_children(|c| {
-                c.spawn((
-                    SelectionLight,
-                    PointLightBundle {
-                        point_light: PointLight {
-                            intensity: 100_000.0,
-                            color: RED_300.into(),
-                            range: dice.size * 4.0,
-                            ..default()
-                        },
-                        transform: Transform::from_translation(Vec3::Y * dice.size * 0.5),
-                        ..default()
-                    },
-                ));
-            });
         }
     } else if *existed {
         *existed = false;
-
-        for selection_light in &q_selection_light {
-            commands.entity(selection_light).despawn();
-        }
+        reset_dice_states();
     }
 }
