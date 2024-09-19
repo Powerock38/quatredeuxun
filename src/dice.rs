@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use rand::prelude::*;
 
 use crate::combination::{Combination, DiceResult};
+use crate::game::{ToBeat, Tries};
 use crate::player::PLAYER_POSITION;
 use crate::table::TablePart;
 use crate::ui::LastCombination;
@@ -143,6 +144,8 @@ pub fn on_pickup_dice(
 pub fn analyze_dices(
     mut commands: Commands,
     last_combination: Option<Res<LastCombination>>,
+    mut tries: ResMut<Tries>,
+    to_beat: Res<ToBeat>,
     mut q_dices: Query<
         (&Dice, &Transform, &mut AngularVelocity, &mut LinearVelocity),
         Without<InHand>,
@@ -184,6 +187,15 @@ pub fn analyze_dices(
 
         if nb_results == NB_DICES {
             let combination = Combination::get(results);
+
+            // Update the player's tries
+            tries.0 += 1;
+
+            if combination >= to_beat.combination || tries.0 >= to_beat.tries {
+                commands.insert_resource(ToBeat::roll());
+                tries.0 = 0;
+            }
+
             commands.insert_resource(LastCombination(combination));
         }
     }

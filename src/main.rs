@@ -4,6 +4,7 @@ use dice::{
     analyze_dices, filter_collisions_in_hand, manage_selection_around_dice, pickup_fallen_dices,
     raycast_dices, spawn_dices,
 };
+use game::{ToBeat, Tries};
 use player::{click_spawns_raycast, spawn_camera};
 use table::setup;
 use ui::UiPlugin;
@@ -11,6 +12,7 @@ use ui::UiPlugin;
 mod combination;
 mod dice;
 mod flycam;
+mod game;
 mod player;
 mod table;
 mod ui;
@@ -46,5 +48,7 @@ fn main() {
             ),
         )
         .add_systems(PostProcessCollisions, filter_collisions_in_hand)
+        .insert_resource(ToBeat::roll())
+        .init_resource::<Tries>()
         .run();
 }

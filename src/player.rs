@@ -3,14 +3,10 @@ use bevy::prelude::*;
 
 use crate::table::TABLE_RADIUS;
 
-#[derive(Component)]
-pub struct Player;
-
 pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, TABLE_RADIUS * 1.5);
 
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
-        Player,
         crate::flycam::FlyCam,
         Camera3dBundle {
             transform: Transform::from_translation(PLAYER_POSITION).looking_at(Vec3::ZERO, Dir3::Y),
