@@ -13,7 +13,7 @@ pub struct LastCombination {
 }
 
 //TODO
-// add full house (50/50 with at least a pair of each), 2 pairs, 1 pair, small straight
+// add full house (50/50 with at least a pair of each), 2 pairs, 1 pair
 // Highest roll: > 6 (with special dices)
 
 #[derive(PartialEq, Eq)]
@@ -44,8 +44,23 @@ impl Combination {
         }
 
         // Check for a "Straight" (consecutive sequence)
-        if results.windows(2).all(|w| w[1] == w[0] + 1) {
-            return Combination::Straight(*results.last().unwrap(), results.len());
+        let mut straight_res = results.clone();
+        straight_res.dedup();
+
+        let (max_straight_length, max_straight_highest) =
+            straight_res.iter().zip(straight_res.iter().skip(1)).fold(
+                (1, *straight_res.first().unwrap()),
+                |(max_len, highest), (&a, &b)| {
+                    if b == a + 1 {
+                        (max_len + 1, b)
+                    } else {
+                        (max_len, highest)
+                    }
+                },
+            );
+
+        if max_straight_length >= 3 {
+            return Combination::Straight(max_straight_highest, max_straight_length);
         }
 
         // 421
@@ -72,10 +87,10 @@ impl Combination {
             Combination::FourTwoOne(len) => 10 * (3.0 / *len as f32) as u32,
             Combination::Strike(dice) if *dice == 1 => 7,
             Combination::Ace(dice) | Combination::Strike(dice) => (*dice).into(),
-            Combination::Straight(_, _) => 4,
-            Combination::HighRoll(_) => 3,
-            Combination::LowRoll(_) => 2,
-            Combination::Any(_) => 1,
+            Combination::Straight(_, len) => *len as u32,
+            Combination::HighRoll(_) => 2,
+            Combination::LowRoll(_) => 1,
+            Combination::Any(_) => 0,
         }
     }
 
@@ -100,12 +115,21 @@ impl Ord for Combination {
 
         if ord == Ordering::Equal {
             ord = match (self, other) {
-                (Combination::Any(a), Combination::Any(b)) => {
+                (Combination::Any(a), Combination::Any(b))
+                | (Combination::HighRoll(a), Combination::HighRoll(b))
+                | (Combination::LowRoll(a), Combination::LowRoll(b)) => {
                     a.iter().sum::<DiceResult>().cmp(&b.iter().sum())
                 }
+
                 (Combination::Strike(dice), Combination::Strike(other_dice)) => {
                     dice.cmp(other_dice)
                 }
+
+                (
+                    Combination::Straight(dice, len),
+                    Combination::Straight(other_dice, other_len),
+                ) => len.cmp(other_len).then_with(|| dice.cmp(other_dice)),
+
                 _ => ord,
             };
         }
@@ -118,7 +142,7 @@ impl fmt::Display for Combination {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}  [{}¢]",
+            "{}  [{}¤]",
             match self {
                 Combination::FourTwoOne(_) => "Four-Two-One!".to_string(),
                 Combination::Ace(dice) => format!("{dice} Ace"),
