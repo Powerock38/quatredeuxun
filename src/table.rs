@@ -1,10 +1,7 @@
 use avian3d::prelude::*;
 use bevy::{color::palettes::css::RED, prelude::*};
 
-use crate::{
-    combination::LastCombination,
-    dice::{Dice, InHand},
-};
+use crate::dice::{Dice, InHand};
 
 pub const TABLE_RADIUS: f32 = 10.0;
 pub const TABLE_THICKNESS: f32 = 0.1;
@@ -60,27 +57,19 @@ pub fn setup(
 }
 
 pub fn punch_table(
-    mut commands: Commands,
     button_input: Res<ButtonInput<MouseButton>>,
     collisions: Res<Collisions>,
     q_table_parts: Query<Entity, With<TablePart>>,
     mut q_dices: Query<(Entity, &mut LinearVelocity), (With<Dice>, Without<InHand>)>,
 ) {
     if button_input.just_pressed(MouseButton::Right) {
-        let mut moved = false;
-
         for (entity, mut linear_velocity) in &mut q_dices {
             if q_table_parts
                 .iter()
                 .any(|table_part| collisions.contains(entity, table_part))
             {
                 linear_velocity.0 += Vec3::new(0.0, 5.0, 0.0);
-                moved = true;
             }
-        }
-
-        if moved {
-            commands.remove_resource::<LastCombination>();
         }
     }
 }

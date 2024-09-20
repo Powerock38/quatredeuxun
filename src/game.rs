@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use core::fmt;
 use rand::prelude::*;
 
 use crate::{combination::Combination, dice::NB_DICES};
@@ -10,6 +11,24 @@ pub struct Tries(pub u8);
 pub struct ToBeat {
     pub combination: Combination,
     pub tries: u8,
+    challenge: ToBeatChallenge,
+}
+
+enum ToBeatChallenge {
+    HigherOrEqual,
+    Higher,
+    Equal,
+}
+
+impl ToBeatChallenge {
+    fn random() -> Self {
+        let mut rng = thread_rng();
+        match rng.gen_range(0..3) {
+            0 => Self::HigherOrEqual,
+            1 => Self::Higher,
+            _ => Self::Equal,
+        }
+    }
 }
 
 impl ToBeat {
@@ -34,6 +53,33 @@ impl ToBeat {
             }
         };
 
-        Self { combination, tries }
+        Self {
+            combination,
+            tries,
+            challenge: ToBeatChallenge::random(),
+        }
+    }
+
+    pub fn is_won(&self, combination: &Combination) -> bool {
+        match self.challenge {
+            ToBeatChallenge::HigherOrEqual => *combination >= self.combination,
+            ToBeatChallenge::Higher => *combination > self.combination,
+            ToBeatChallenge::Equal => *combination == self.combination,
+        }
+    }
+}
+
+impl fmt::Display for ToBeat {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "Score {}:  {}",
+            match self.challenge {
+                ToBeatChallenge::HigherOrEqual => "higher or equal to",
+                ToBeatChallenge::Higher => "higher than",
+                ToBeatChallenge::Equal => "exactly",
+            },
+            self.combination,
+        )
     }
 }

@@ -17,13 +17,14 @@ impl LastCombinationText {
 #[derive(Component)]
 struct ToBeatText;
 
-fn setup_ui(mut commands: Commands) {
+fn setup_ui(mut commands: Commands, assets_server: Res<AssetServer>) {
     commands.spawn((
         ToBeatText,
         TextBundle::from_section(
             "",
             TextStyle {
                 font_size: 50.0,
+                font: assets_server.load("JqkasWild.ttf"),
                 ..default()
             },
         ),
@@ -33,6 +34,7 @@ fn setup_ui(mut commands: Commands) {
 fn spawn_last_combination(
     mut commands: Commands,
     last_combination: Option<Res<LastCombination>>,
+    assets_server: Res<AssetServer>,
     tries: Res<Tries>,
 ) {
     if let Some(last_combination) = last_combination {
@@ -44,7 +46,7 @@ fn spawn_last_combination(
                         "{}\n{}",
                         last_combination.combination,
                         if tries.0 == 0 {
-                            if last_combination.enough {
+                            if last_combination.win {
                                 "You win!"
                             } else {
                                 "You lose!"
@@ -55,6 +57,7 @@ fn spawn_last_combination(
                     ),
                     TextStyle {
                         font_size: 50.0,
+                        font: assets_server.load("JqkasWild.ttf"),
                         ..default()
                     },
                 )
@@ -88,10 +91,7 @@ fn update_to_beat(
     let mut to_beat_text = q_to_beat_text.single_mut();
 
     if to_beat.is_added() || to_beat.is_changed() || tries.is_added() || tries.is_changed() {
-        to_beat_text.sections[0].value = format!(
-            "Beat {} ({}/{})",
-            to_beat.combination, tries.0, to_beat.tries
-        );
+        to_beat_text.sections[0].value = format!("{}\n({}/{})", *to_beat, tries.0, to_beat.tries);
     }
 }
 

@@ -145,8 +145,10 @@ pub fn analyze_dices(
     last_combination: Option<Res<LastCombination>>,
     mut tries: ResMut<Tries>,
     to_beat: Res<ToBeat>,
+    collisions: Res<Collisions>,
+    q_table_parts: Query<Entity, With<TablePart>>,
     q_dices_on_table: Query<
-        (&Dice, &Transform, &AngularVelocity, &LinearVelocity),
+        (Entity, &Dice, &Transform, &AngularVelocity, &LinearVelocity),
         Without<InHand>,
     >,
     q_dices_in_hand: Query<(), (With<Dice>, With<InHand>)>,
@@ -155,9 +157,12 @@ pub fn analyze_dices(
         let nb_dices_total = q_dices_on_table.iter().count() + q_dices_in_hand.iter().count();
         let mut results = vec![];
 
-        for (dice, transform, angular_velocity, linear_velocity) in &q_dices_on_table {
+        for (entity, dice, transform, angular_velocity, linear_velocity) in &q_dices_on_table {
             if linear_velocity.0.length() < MIN_MOVEMENT
                 && angular_velocity.0.length() < MIN_MOVEMENT
+                && q_table_parts
+                    .iter()
+                    .any(|table_part| collisions.contains(entity, table_part))
             {
                 // Determine which face is most aligned with the world up vector
                 let mut max_dot = -1.0;
@@ -187,17 +192,14 @@ pub fn analyze_dices(
             // Update the player's tries
             tries.0 += 1;
 
-            let enough = combination >= to_beat.combination;
+            let win = to_beat.is_won(&combination);
 
-            if combination >= to_beat.combination || tries.0 >= to_beat.tries {
+            if win || tries.0 >= to_beat.tries {
                 commands.insert_resource(ToBeat::roll());
                 tries.0 = 0;
             }
 
-            commands.insert_resource(LastCombination {
-                combination,
-                enough,
-            });
+            commands.insert_resource(LastCombination { combination, win });
         }
     }
 }
