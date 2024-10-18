@@ -8,20 +8,25 @@ pub type DiceResult = u8;
 
 #[derive(Resource)]
 pub struct LastCombination {
-    pub combination: Combination,
-    pub win: bool,
+    pub player: Combination,
+    pub npc: Combination,
 }
 
-//TODO
-// add full house (50/50 with at least a pair of each), 2 pairs, 1 pair
-// Highest roll: > 6 (with special dices)
+impl LastCombination {
+    pub fn wins(&self) -> bool {
+        self.player >= self.npc
+    }
+}
+
+//TODO full house (50/50 with at least a pair of each), 2 pairs, 1 pair
 
 #[derive(PartialEq, Eq)]
 pub enum Combination {
     Any(Vec<DiceResult>),
-    LowRoll(Vec<DiceResult>),
-    HighRoll(Vec<DiceResult>),
-    Straight(DiceResult, usize), // highest dice in the serie, length
+    LowRoll(Vec<DiceResult>),     // < 3
+    HighRoll(Vec<DiceResult>),    // > 3
+    HighestRoll(Vec<DiceResult>), // > 6
+    Straight(DiceResult, usize),  // highest dice in the serie, length
     Strike(DiceResult),
     Ace(DiceResult), // can't be 1
     FourTwoOne(usize),
@@ -32,6 +37,7 @@ impl Combination {
         assert!(results.len() >= MIN_NB_DICES);
 
         results.sort_unstable();
+        results.reverse();
 
         // Check for a "Strike" (all dice are the same)
         if results.iter().all(|&d| d == results[0]) {
@@ -40,12 +46,13 @@ impl Combination {
 
         // Check for an "Ace" (any dice + all 1)
         if results.iter().filter(|&d| *d == 1).count() == results.len() - 1 {
-            return Combination::Ace(*results.last().unwrap());
+            return Combination::Ace(*results.first().unwrap());
         }
 
         // Check for a "Straight" (consecutive sequence)
         let mut straight_res = results.clone();
         straight_res.dedup();
+        straight_res.reverse();
 
         let (max_straight_length, max_straight_highest) =
             straight_res.iter().zip(straight_res.iter().skip(1)).fold(
@@ -68,6 +75,11 @@ impl Combination {
             return Combination::FourTwoOne(results.len());
         }
 
+        // "Highest roll": all dices > 6
+        if results.iter().all(|&d| d > 6) {
+            return Combination::HighestRoll(results);
+        }
+
         // "High roll": all dices > 3
         if results.iter().all(|&d| d > 3) {
             return Combination::HighRoll(results);
@@ -88,6 +100,7 @@ impl Combination {
             Combination::Strike(dice) if *dice == 1 => 7,
             Combination::Ace(dice) | Combination::Strike(dice) => (*dice).into(),
             Combination::Straight(_, len) => *len as u32,
+            Combination::HighestRoll(_) => 3,
             Combination::HighRoll(_) => 2,
             Combination::LowRoll(_) => 1,
             Combination::Any(_) => 0,
@@ -154,6 +167,10 @@ impl fmt::Display for Combination {
                         .collect::<Vec<String>>()
                         .join(",")
                 }),
+                Combination::HighestRoll(dices) => format!(
+                    "Highest Roll {}",
+                    dices.iter().map(ToString::to_string).collect::<String>()
+                ),
                 Combination::HighRoll(dices) => format!(
                     "High Roll {}",
                     dices.iter().map(ToString::to_string).collect::<String>()

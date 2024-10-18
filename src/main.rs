@@ -1,11 +1,12 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
-use dice::{
-    analyze_dices, filter_collisions_in_hand, manage_selected_dice_animation, pickup_fallen_dices,
-    raycast_dices, spawn_dices,
+use dice::analyze_dices;
+use game::{setup_game_state, GameState, Tries};
+use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
+use player::{
+    click_spawns_raycast, filter_collisions_in_hand, manage_selected_dice_animation,
+    pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
 };
-use game::{ToBeat, Tries};
-use player::{click_spawns_raycast, spawn_camera};
 use table::{punch_table, setup};
 use ui::UiPlugin;
 
@@ -13,6 +14,7 @@ mod combination;
 mod dice;
 mod flycam;
 mod game;
+mod npc;
 mod player;
 mod table;
 mod ui;
@@ -36,20 +38,25 @@ fn main() {
             UiPlugin,
             flycam::FlyCamPlugin,
         ))
-        .add_systems(Startup, (setup, spawn_camera, spawn_dices))
+        .add_systems(
+            Startup,
+            (setup, spawn_camera, spawn_player_dices, spawn_npc_dices),
+        )
         .add_systems(
             Update,
             (
-                pickup_fallen_dices,
-                click_spawns_raycast,
-                raycast_dices,
+                setup_game_state.run_if(in_state(GameState::Setup)),
+                (pickup_fallen_dices, click_spawns_raycast, raycast_dices)
+                    .run_if(in_state(GameState::PlayerRolling)),
                 analyze_dices,
                 manage_selected_dice_animation,
                 punch_table,
+                reroll_fallen_npc_dices,
             ),
         )
+        .add_systems(OnEnter(GameState::NPCRolling), roll_npc_dices)
         .add_systems(PostProcessCollisions, filter_collisions_in_hand)
-        .insert_resource(ToBeat::roll())
+        .init_state::<GameState>()
         .init_resource::<Tries>()
         .run();
 }

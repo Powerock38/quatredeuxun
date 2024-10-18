@@ -1,9 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{
-    combination::LastCombination,
-    game::{ToBeat, Tries},
-};
+use crate::{combination::LastCombination, game::Tries};
 
 #[derive(Component)]
 struct LastCombinationText(Timer);
@@ -44,9 +41,9 @@ fn spawn_last_combination(
                 TextBundle::from_section(
                     format!(
                         "{}\n{}",
-                        last_combination.combination,
+                        last_combination.player,
                         if tries.0 == 0 {
-                            if last_combination.win {
+                            if last_combination.wins() {
                                 "You win!"
                             } else {
                                 "You lose!"
@@ -83,28 +80,10 @@ fn update_last_combination(
     }
 }
 
-fn update_to_beat(
-    mut q_to_beat_text: Query<&mut Text, (With<ToBeatText>, Without<LastCombinationText>)>,
-    to_beat: Res<ToBeat>,
-    tries: Res<Tries>,
-) {
-    let mut to_beat_text = q_to_beat_text.single_mut();
-
-    if to_beat.is_added() || to_beat.is_changed() || tries.is_added() || tries.is_changed() {
-        to_beat_text.sections[0].value = format!("{}\n({}/{})", *to_beat, tries.0, to_beat.tries);
-    }
-}
-
 pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_ui).add_systems(
-            Update,
-            (
-                update_to_beat,
-                spawn_last_combination,
-                update_last_combination,
-            ),
-        );
+        app.add_systems(Startup, setup_ui)
+            .add_systems(Update, (spawn_last_combination, update_last_combination));
     }
 }
