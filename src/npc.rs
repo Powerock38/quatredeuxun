@@ -1,8 +1,8 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css::RED, prelude::*};
 use rand::prelude::*;
 
 use crate::{
-    dice::{new_dice, Dice, InHandBundle, RollDice, NB_DICES},
+    dice::{Dice, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
     player::PlayerDice,
     table::TABLE_RADIUS,
 };
@@ -12,9 +12,15 @@ pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, -TABLE_RADIUS 
 #[derive(Event)]
 pub struct NPCThrow;
 
-pub fn spawn_npc_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
+pub fn spawn_npc_dices(mut commands: Commands) {
     for i in 0..NB_DICES {
-        let entity = new_dice(&mut commands, &assets_server, i);
+        let entity = commands.spawn_empty().id();
+
+        commands.add(NewDiceCommand {
+            entity,
+            i,
+            tint_color: RED.into(),
+        });
 
         commands
             .entity(entity)

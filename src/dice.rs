@@ -1,4 +1,5 @@
 use avian3d::prelude::*;
+use bevy::ecs::world::Command;
 use bevy::prelude::*;
 use rand::prelude::*;
 
@@ -20,13 +21,14 @@ pub struct Dice {
     i: usize,
     pub size: f32,
     face_normals: Vec<Vec3>,
+    pub asset_name: String,
 }
 
 impl Dice {
     pub fn new_6(i: usize) -> Self {
         Self {
             i,
-            size: 1.0,
+            size: 0.8,
             face_normals: vec![
                 Vec3::new(0.0, 1.0, 0.0),  // Top face
                 Vec3::new(1.0, 0.0, 0.0),  // Right face
@@ -35,6 +37,7 @@ impl Dice {
                 Vec3::new(-1.0, 0.0, 0.0), // Left face
                 Vec3::new(0.0, -1.0, 0.0), // Bottom face
             ],
+            asset_name: "dice.glb".into(),
         }
     }
 
@@ -71,25 +74,54 @@ impl Default for InHandBundle {
     }
 }
 
-pub fn new_dice(commands: &mut Commands, assets_server: &Res<AssetServer>, i: usize) -> Entity {
-    let dice = Dice::new_6(i);
+pub struct NewDiceCommand {
+    pub entity: Entity,
+    pub i: usize,
+    pub tint_color: Color,
+}
 
-    commands
-        .spawn((
-            RigidBody::Dynamic,
-            Collider::cuboid(dice.size, dice.size, dice.size),
-            LinearDamping(0.5),
-            // AngularDamping(0.5),
-            ColliderDensity(5.0),
-            SceneBundle {
-                scene: assets_server.load(GltfAssetLabel::Scene(0).from_asset("dice.glb")),
-                ..default()
-            },
-            dice,
-            InHandBundle::default(),
-        ))
-        .observe(on_roll_dice)
-        .id()
+impl Command for NewDiceCommand {
+    fn apply(self, world: &mut World) {
+        let dice = Dice::new_6(self.i);
+
+        let asset_server = world.get_resource::<AssetServer>().unwrap();
+        let scene_dice =
+            asset_server.load(GltfAssetLabel::Scene(0).from_asset(dice.asset_name.clone()));
+
+        let mut meshes = world.get_resource_mut::<Assets<Mesh>>().unwrap();
+        let tint_mesh = meshes.add(Cuboid::from_length(dice.size * 1.1));
+
+        let mut materials = world
+            .get_resource_mut::<Assets<StandardMaterial>>()
+            .unwrap();
+        let mut tint_color = self.tint_color;
+        tint_color.set_alpha(0.3);
+        let tint_material = materials.add(tint_color);
+
+        world
+            .entity_mut(self.entity)
+            .insert((
+                RigidBody::Dynamic,
+                Collider::cuboid(dice.size, dice.size, dice.size),
+                LinearDamping(0.5),
+                // AngularDamping(0.5),
+                ColliderDensity(5.0),
+                SceneBundle {
+                    scene: scene_dice,
+                    ..default()
+                },
+                dice,
+                InHandBundle::default(),
+            ))
+            .with_children(|c| {
+                c.spawn(PbrBundle {
+                    material: tint_material,
+                    mesh: tint_mesh,
+                    ..default()
+                });
+            })
+            .observe(on_roll_dice);
+    }
 }
 
 pub fn on_roll_dice(

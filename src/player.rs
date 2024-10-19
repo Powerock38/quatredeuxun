@@ -1,8 +1,8 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{color::palettes::css::BLUE, prelude::*};
 
 use crate::{
-    dice::{new_dice, Dice, InHand, InHandBundle, RollDice, NB_DICES},
+    dice::{Dice, InHand, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
     game::ThrowsLeft,
     table::{TablePart, TABLE_RADIUS},
 };
@@ -28,9 +28,15 @@ pub fn spawn_camera(mut commands: Commands) {
     ));
 }
 
-pub fn spawn_player_dices(mut commands: Commands, assets_server: Res<AssetServer>) {
+pub fn spawn_player_dices(mut commands: Commands) {
     for i in 0..NB_DICES {
-        let entity = new_dice(&mut commands, &assets_server, i);
+        let entity = commands.spawn_empty().id();
+
+        commands.add(NewDiceCommand {
+            entity,
+            i,
+            tint_color: BLUE.into(),
+        });
 
         commands
             .entity(entity)

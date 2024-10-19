@@ -1,5 +1,5 @@
 use avian3d::prelude::*;
-use bevy::{color::palettes::css::RED, prelude::*};
+use bevy::prelude::*;
 
 use crate::dice::{Dice, InHand};
 
@@ -39,7 +39,9 @@ pub fn setup(
             transform: Transform::from_xyz(0.0, (RING_HEIGHT + TABLE_THICKNESS) / 2.0, 0.0)
                 .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
             mesh: meshes.add(ring),
-            material: materials.add(StandardMaterial::from_color(RED)),
+            material: materials.add(StandardMaterial::from_color(LinearRgba::new(
+                0.9, 0.2, 0.1, 0.5,
+            ))),
             ..default()
         },
     ));
