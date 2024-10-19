@@ -1,11 +1,11 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use dice::analyze_dices;
-use game::{setup_game_state, GameState, Tries};
+use game::{setup_game_state, GameState, ThrowsLeft};
 use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
 use player::{
     click_spawns_raycast, filter_collisions_in_hand, manage_selected_dice_animation,
-    pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
+    pickup_all_player_dices, pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
 };
 use table::{punch_table, setup};
 use ui::UiPlugin;
@@ -54,9 +54,12 @@ fn main() {
                 reroll_fallen_npc_dices,
             ),
         )
-        .add_systems(OnEnter(GameState::NPCRolling), roll_npc_dices)
+        .add_systems(
+            OnEnter(GameState::NPCRolling),
+            (pickup_all_player_dices, roll_npc_dices),
+        )
         .add_systems(PostProcessCollisions, filter_collisions_in_hand)
         .init_state::<GameState>()
-        .init_resource::<Tries>()
+        .init_resource::<ThrowsLeft>()
         .run();
 }

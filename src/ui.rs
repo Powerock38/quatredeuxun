@@ -1,82 +1,96 @@
 use bevy::prelude::*;
 
-use crate::{combination::LastCombination, game::Tries};
+use crate::{combination::Combination, game::ThrowsLeft};
 
 #[derive(Component)]
-struct LastCombinationText(Timer);
-
-impl LastCombinationText {
-    fn new() -> Self {
-        Self(Timer::from_seconds(2.0, TimerMode::Once))
-    }
-}
+struct ThrowsLeftText;
 
 #[derive(Component)]
-struct ToBeatText;
+struct ScoreText;
 
 fn setup_ui(mut commands: Commands, assets_server: Res<AssetServer>) {
-    commands.spawn((
-        ToBeatText,
-        TextBundle::from_section(
-            "",
-            TextStyle {
-                font_size: 50.0,
-                font: assets_server.load("JqkasWild.ttf"),
+    commands.observe(on_display_score);
+
+    commands
+        .spawn(NodeBundle {
+            style: Style {
+                flex_direction: FlexDirection::Row,
+                justify_content: JustifyContent::SpaceBetween,
                 ..default()
             },
-        ),
-    ));
-}
-
-fn spawn_last_combination(
-    mut commands: Commands,
-    last_combination: Option<Res<LastCombination>>,
-    assets_server: Res<AssetServer>,
-    tries: Res<Tries>,
-) {
-    if let Some(last_combination) = last_combination {
-        if last_combination.is_added() || last_combination.is_changed() {
-            commands.spawn((
-                LastCombinationText::new(),
+            ..default()
+        })
+        .with_children(|c| {
+            c.spawn((
+                ThrowsLeftText,
                 TextBundle::from_section(
-                    format!(
-                        "{}\n{}",
-                        last_combination.player,
-                        if tries.0 == 0 {
-                            if last_combination.wins() {
-                                "You win!"
-                            } else {
-                                "You lose!"
-                            }
-                        } else {
-                            ""
-                        }
-                    ),
+                    "",
                     TextStyle {
                         font_size: 50.0,
                         font: assets_server.load("JqkasWild.ttf"),
                         ..default()
                     },
-                )
-                .with_style(Style {
-                    justify_self: JustifySelf::Center,
-                    align_self: AlignSelf::Center,
-                    ..default()
-                }),
+                ),
             ));
+
+            //TODO: button to remove all ThrowsLeft
+
+            //FIXME: doesnt show up
+            c.spawn((
+                ScoreText,
+                TextBundle::from_section(
+                    "zzz",
+                    TextStyle {
+                        font_size: 50.0,
+                        font: assets_server.load(
+                            "JqkasWild.ttf
+                    ",
+                        ),
+                        ..default()
+                    },
+                ),
+            ));
+        });
+}
+
+fn update_throws(mut query: Query<&mut Text, With<ThrowsLeftText>>, throws: Res<ThrowsLeft>) {
+    if throws.is_added() || throws.is_changed() {
+        let mut text = query.single_mut();
+        text.sections[0].value = format!("Throws left: {}", throws.0);
+    }
+}
+
+#[derive(Event)]
+pub struct DisplayScore {
+    npc: Combination,
+    player: Option<(Combination, bool)>, // (combination, wins) if player threw dices
+}
+
+impl DisplayScore {
+    pub fn npc(npc: Combination) -> Self {
+        Self { npc, player: None }
+    }
+
+    pub fn player(npc: Combination, player: Combination, wins: bool) -> Self {
+        Self {
+            npc,
+            player: Some((player, wins)),
         }
     }
 }
 
-fn update_last_combination(
-    mut commands: Commands,
-    mut query: Query<(Entity, &mut LastCombinationText)>,
-    time: Res<Time>,
-) {
-    for (entity, mut last_combination_text) in &mut query {
-        if last_combination_text.0.tick(time.delta()).just_finished() {
-            commands.entity(entity).despawn();
-        }
+fn on_display_score(trigger: Trigger<DisplayScore>, mut query: Query<&mut Text, With<ScoreText>>) {
+    let score = trigger.event();
+    let mut text = query.single_mut();
+
+    text.sections[0].value = match &score.player {
+        Some((player, wins)) => format!(
+            "To beat: {}. You scored: {}\n{}",
+            score.npc,
+            player,
+            if *wins { "You win!" } else { "You lose!" }
+        ),
+        None => format!("To beat: {}", score.npc),
     }
 }
 
@@ -84,6 +98,6 @@ pub struct UiPlugin;
 impl Plugin for UiPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_ui)
-            .add_systems(Update, (spawn_last_combination, update_last_combination));
+            .add_systems(Update, update_throws);
     }
 }

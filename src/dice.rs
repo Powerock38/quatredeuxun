@@ -2,10 +2,11 @@ use avian3d::prelude::*;
 use bevy::prelude::*;
 use rand::prelude::*;
 
-use crate::combination::{Combination, DiceResult, LastCombination};
-use crate::game::GameState;
+use crate::combination::{Combination, DiceResult};
+use crate::game::{GameState, ThrowsLeft};
 use crate::player::PlayerDice;
 use crate::table::TablePart;
+use crate::ui::DisplayScore;
 
 pub const NB_DICES: usize = 3;
 pub const MIN_NB_DICES: usize = 2;
@@ -119,7 +120,7 @@ pub fn on_roll_dice(
 
 pub fn analyze_dices(
     mut commands: Commands,
-    last_combination: Option<Res<LastCombination>>,
+    throws: Res<ThrowsLeft>,
     collisions: Res<Collisions>,
     q_table_parts: Query<Entity, With<TablePart>>,
     q_player_dices_on_table: Query<
@@ -130,69 +131,83 @@ pub fn analyze_dices(
         (Entity, &Dice, &Transform, &AngularVelocity, &LinearVelocity),
         (Without<InHand>, Without<PlayerDice>),
     >,
+    state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
 ) {
-    // FIXME: deadlock between LastCombination / GameState
-    if last_combination.is_none() {
-        let read_dice = |args: (Entity,
-                          &Dice,
-                          &Transform,
-                          &AngularVelocity,
-                          &LinearVelocity)|
-         -> Option<DiceResult> {
-            let (entity, dice, transform, angular_velocity, linear_velocity) = args;
+    let read_dice = |args: (Entity,
+                        &Dice,
+                        &Transform,
+                        &AngularVelocity,
+                        &LinearVelocity)|
+        -> Option<DiceResult> {
+        let (entity, dice, transform, angular_velocity, linear_velocity) = args;
 
-            if linear_velocity.0.length() < MIN_MOVEMENT
-                && angular_velocity.0.length() < MIN_MOVEMENT
-                && q_table_parts
-                    .iter()
-                    .any(|table_part| collisions.contains(entity, table_part))
-            {
-                // Determine which face is most aligned with the world up vector
-                let mut max_dot = -1.0;
-                let mut result = 0;
+        if linear_velocity.0.length() < MIN_MOVEMENT
+            && angular_velocity.0.length() < MIN_MOVEMENT
+            && q_table_parts
+                .iter()
+                .any(|table_part| collisions.contains(entity, table_part))
+        {
+            // Determine which face is most aligned with the world up vector
+            let mut max_dot = -1.0;
+            let mut result = 0;
 
-                for (i, normal) in dice.face_normals.iter().enumerate() {
-                    // Rotate the face normal to the current orientation
-                    let transformed_normal = transform.rotation * *normal;
+            for (i, normal) in dice.face_normals.iter().enumerate() {
+                // Rotate the face normal to the current orientation
+                let transformed_normal = transform.rotation * *normal;
 
-                    // Compare it with the world up vector
-                    let dot_product = transformed_normal.dot(Vec3::Y);
+                // Compare it with the world up vector
+                let dot_product = transformed_normal.dot(Vec3::Y);
 
-                    // Check if this face is more aligned with the up direction
-                    if dot_product > max_dot {
-                        max_dot = dot_product;
-                        result = i + 1;
-                    }
+                // Check if this face is more aligned with the up direction
+                if dot_product > max_dot {
+                    max_dot = dot_product;
+                    result = i + 1;
                 }
-
-                return Some(result as DiceResult);
             }
 
-            None
-        };
-
-        let results_npc = q_npc_dices_on_table
-            .iter()
-            .filter_map(read_dice)
-            .collect::<Vec<_>>();
-
-        if results_npc.len() == NB_DICES {
-            next_state.set(GameState::PlayerRolling);
+            return Some(result as DiceResult);
         }
 
-        let results_player = q_player_dices_on_table
-            .iter()
-            .filter_map(read_dice)
-            .collect::<Vec<_>>();
+        None
+    };
 
-        if results_player.len() == NB_DICES && results_npc.len() == NB_DICES {
-            commands.insert_resource(LastCombination {
-                player: Combination::get(results_player),
-                npc: Combination::get(results_npc),
-            });
+    let results_npc = q_npc_dices_on_table
+        .iter()
+        .filter_map(read_dice)
+        .collect::<Vec<_>>();
 
-            next_state.set(GameState::NPCRolling);
+    match state.get() {
+        GameState::NPCRolling => {
+            // If NPC finished rolling, proceed to player's turn
+            if results_npc.len() == NB_DICES {
+                commands.trigger(DisplayScore::npc(Combination::get(results_npc)));
+                next_state.set(GameState::PlayerRolling);
+            }
         }
+
+        GameState::PlayerRolling => {
+            // If player finished rolling (= out of throws), calculate score
+            if throws.0 == 0 && results_npc.len() == NB_DICES {
+                let results_player = q_player_dices_on_table
+                    .iter()
+                    .filter_map(read_dice)
+                    .collect::<Vec<_>>();
+
+                if results_player.len() == NB_DICES {
+                    let player = Combination::get(results_player);
+                    let npc = Combination::get(results_npc);
+
+                    let wins = player >= npc;
+
+                    commands.trigger(DisplayScore::player(npc, player, wins));
+
+                    //TODO: go to shop
+                    next_state.set(GameState::NPCRolling);
+                }
+            }
+        }
+
+        _ => {}
     }
 }

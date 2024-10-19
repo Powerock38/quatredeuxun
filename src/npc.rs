@@ -19,7 +19,11 @@ pub fn spawn_npc_dices(mut commands: Commands, assets_server: Res<AssetServer>) 
         commands
             .entity(entity)
             .observe(on_npc_throw)
-            .insert(Transform::from_xyz(1000.0, 1000.0, 1000.0));
+            .insert(Transform::from_xyz(
+                1000.0 + i as f32 * 100.0,
+                1000.0,
+                1000.0,
+            ));
     }
 }
 

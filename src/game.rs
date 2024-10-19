@@ -1,7 +1,13 @@
 use bevy::prelude::*;
 
-#[derive(Resource, Default)]
-pub struct Tries(pub u8); //TODO tries
+#[derive(Resource)]
+pub struct ThrowsLeft(pub u8);
+
+impl Default for ThrowsLeft {
+    fn default() -> Self {
+        Self(6)
+    }
+}
 
 #[derive(States, Default, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum GameState {
@@ -9,6 +15,7 @@ pub enum GameState {
     Setup,
     NPCRolling,
     PlayerRolling,
+    //TODO: Shopping,
 }
 
 pub fn setup_game_state(mut state: ResMut<NextState<GameState>>) {

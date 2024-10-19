@@ -1,22 +1,9 @@
-use bevy::prelude::*;
 use core::fmt;
 use std::cmp::Ordering;
 
 use crate::dice::MIN_NB_DICES;
 
 pub type DiceResult = u8;
-
-#[derive(Resource)]
-pub struct LastCombination {
-    pub player: Combination,
-    pub npc: Combination,
-}
-
-impl LastCombination {
-    pub fn wins(&self) -> bool {
-        self.player >= self.npc
-    }
-}
 
 //TODO full house (50/50 with at least a pair of each), 2 pairs, 1 pair
 
