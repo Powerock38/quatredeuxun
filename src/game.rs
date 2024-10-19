@@ -9,6 +9,9 @@ impl Default for ThrowsLeft {
     }
 }
 
+#[derive(Resource, Default)]
+pub struct CanSkipTurn(pub bool);
+
 #[derive(States, Default, Debug, Hash, PartialEq, Eq, Clone)]
 pub enum GameState {
     #[default]

@@ -7,7 +7,7 @@ use crate::{
     table::TABLE_RADIUS,
 };
 
-pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 2.5, -TABLE_RADIUS * 2.0);
+pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, -TABLE_RADIUS * 1.5);
 
 #[derive(Event)]
 pub struct NPCThrow;

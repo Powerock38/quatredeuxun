@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use rand::prelude::*;
 
 use crate::combination::{Combination, DiceResult};
-use crate::game::{GameState, ThrowsLeft};
+use crate::game::{CanSkipTurn, GameState, ThrowsLeft};
 use crate::player::PlayerDice;
 use crate::table::TablePart;
 use crate::ui::DisplayScore;
@@ -42,9 +42,9 @@ impl Dice {
         Transform::from_translation(
             thrower_position
                 + Vec3::new(
-                    (self.i as f32 - NB_DICES as f32 / 2.0 + 0.5) * self.size,
+                    (self.i as f32 - NB_DICES as f32 / 2.0 + 0.5) * self.size * 1.2,
                     -6.0,
-                    -0.2,
+                    -2.5,
                 ),
         )
     }
@@ -79,7 +79,7 @@ pub fn new_dice(commands: &mut Commands, assets_server: &Res<AssetServer>, i: us
             RigidBody::Dynamic,
             Collider::cuboid(dice.size, dice.size, dice.size),
             LinearDamping(0.5),
-            AngularDamping(0.5),
+            // AngularDamping(0.5),
             ColliderDensity(5.0),
             SceneBundle {
                 scene: assets_server.load(GltfAssetLabel::Scene(0).from_asset("dice.glb")),
@@ -133,14 +133,17 @@ pub fn analyze_dices(
     >,
     state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
+    mut can_skip_turn: ResMut<CanSkipTurn>,
 ) {
-    let read_dice = |args: (Entity,
-                        &Dice,
-                        &Transform,
-                        &AngularVelocity,
-                        &LinearVelocity)|
-        -> Option<DiceResult> {
-        let (entity, dice, transform, angular_velocity, linear_velocity) = args;
+    let read_dice = |dice_components: (
+        Entity,
+        &Dice,
+        &Transform,
+        &AngularVelocity,
+        &LinearVelocity,
+    )|
+     -> Option<DiceResult> {
+        let (entity, dice, transform, angular_velocity, linear_velocity) = dice_components;
 
         if linear_velocity.0.length() < MIN_MOVEMENT
             && angular_velocity.0.length() < MIN_MOVEMENT
@@ -177,6 +180,13 @@ pub fn analyze_dices(
         .filter_map(read_dice)
         .collect::<Vec<_>>();
 
+    let results_player = q_player_dices_on_table
+        .iter()
+        .filter_map(read_dice)
+        .collect::<Vec<_>>();
+
+    can_skip_turn.0 = results_player.len() == NB_DICES;
+
     match state.get() {
         GameState::NPCRolling => {
             // If NPC finished rolling, proceed to player's turn
@@ -187,14 +197,12 @@ pub fn analyze_dices(
         }
 
         GameState::PlayerRolling => {
-            // If player finished rolling (= out of throws), calculate score
+            // If player finished rolling (= out of throws) and NPC dices are not moving
             if throws.0 == 0 && results_npc.len() == NB_DICES {
-                let results_player = q_player_dices_on_table
-                    .iter()
-                    .filter_map(read_dice)
-                    .collect::<Vec<_>>();
-
+                // if player dices are not moving
                 if results_player.len() == NB_DICES {
+                    // calculate the score
+
                     let player = Combination::get(results_player);
                     let npc = Combination::get(results_npc);
 

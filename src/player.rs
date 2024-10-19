@@ -7,7 +7,7 @@ use crate::{
     table::{TablePart, TABLE_RADIUS},
 };
 
-pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 2.5, TABLE_RADIUS * 1.0);
+pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, TABLE_RADIUS * 1.5);
 
 #[derive(Component)]
 pub struct PlayerDice;
@@ -55,6 +55,12 @@ pub fn on_pickup_dice(
     commands.insert_resource(SelectedDice(entity));
 }
 
+#[derive(Component)]
+pub enum ClickType {
+    Left,
+    Right,
+}
+
 pub fn click_spawns_raycast(
     mut commands: Commands,
     button_input: Res<ButtonInput<MouseButton>>,
@@ -62,7 +68,9 @@ pub fn click_spawns_raycast(
     camera_query: Query<(&Camera, &GlobalTransform)>,
     windows: Query<&Window>,
 ) {
-    let cursor_position = if button_input.just_pressed(MouseButton::Left) {
+    let cursor_position = if button_input.just_pressed(MouseButton::Left)
+        || button_input.just_pressed(MouseButton::Right)
+    {
         windows.single().cursor_position()
     } else {
         touches
@@ -82,19 +90,26 @@ pub fn click_spawns_raycast(
         return;
     };
 
-    commands.spawn(RayCaster::from_ray(ray));
+    commands.spawn((
+        RayCaster::from_ray(ray),
+        if button_input.just_pressed(MouseButton::Right) {
+            ClickType::Right
+        } else {
+            ClickType::Left
+        },
+    ));
 }
 
 pub fn raycast_dices(
     mut commands: Commands,
-    q_rays: Query<(Entity, &RayCaster, &RayHits)>,
+    q_rays: Query<(Entity, &RayCaster, &RayHits, &ClickType)>,
     q_dices_in_hand: Query<Entity, (With<PlayerDice>, With<InHand>)>,
     q_dices_on_table: Query<(), (With<PlayerDice>, Without<InHand>)>,
     q_table: Query<(), With<TablePart>>,
     selected_dice: Option<Res<SelectedDice>>,
     mut throws: ResMut<ThrowsLeft>,
 ) {
-    for (ray_entity, ray, hits) in &q_rays {
+    for (ray_entity, ray, hits, click_type) in &q_rays {
         for hit in hits.iter_sorted() {
             // Select dices in hand
             if q_dices_in_hand.get(hit.entity).is_ok() {
@@ -103,10 +118,12 @@ pub fn raycast_dices(
             }
 
             if throws.0 > 0 {
-                // Pick up the dices on the table
-                if q_dices_on_table.get(hit.entity).is_ok() {
-                    commands.trigger_targets(PickupDice, hit.entity);
-                    break;
+                if matches!(click_type, ClickType::Right) {
+                    // Pick up the dices on the table
+                    if q_dices_on_table.get(hit.entity).is_ok() {
+                        commands.trigger_targets(PickupDice, hit.entity);
+                        break;
+                    }
                 }
 
                 // Click table to roll the dices
@@ -144,7 +161,7 @@ pub fn manage_selected_dice_animation(
         (With<PlayerDice>, With<InHand>),
     >,
 ) {
-    // Closure to reset the dice states
+    // Closure to reset the dice rotation
     let mut reset_dice_states = || {
         for (mut angular_velocity, mut rotation) in &mut q_dices_in_hand {
             angular_velocity.0 = Vec3::ZERO;
