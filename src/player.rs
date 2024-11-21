@@ -4,10 +4,10 @@ use bevy::{color::palettes::css::BLUE, prelude::*};
 use crate::{
     dice::{Dice, InHand, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
     game::ThrowsLeft,
-    table::{TablePart, TABLE_RADIUS},
+    table::{TablePart, TRAY_RADIUS},
 };
 
-pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, TABLE_RADIUS * 1.5);
+pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TRAY_RADIUS * 1.5, TRAY_RADIUS * 1.5);
 
 #[derive(Component)]
 pub struct PlayerDice;

@@ -4,10 +4,10 @@ use rand::prelude::*;
 use crate::{
     dice::{Dice, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
     player::PlayerDice,
-    table::TABLE_RADIUS,
+    table::TRAY_RADIUS,
 };
 
-pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TABLE_RADIUS * 1.5, -TABLE_RADIUS * 1.5);
+pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TRAY_RADIUS * 1.5, -TRAY_RADIUS * 1.5);
 
 #[derive(Event)]
 pub struct NPCThrow;
@@ -57,9 +57,9 @@ pub fn on_npc_throw(
 
     commands.trigger_targets(
         RollDice(Vec3::new(
-            rng.gen_range(-TABLE_RADIUS..=TABLE_RADIUS),
+            rng.gen_range(-TRAY_RADIUS..=TRAY_RADIUS),
             0.0,
-            rng.gen_range(-TABLE_RADIUS..=TABLE_RADIUS),
+            rng.gen_range(-TRAY_RADIUS..=TRAY_RADIUS),
         )),
         entity,
     );

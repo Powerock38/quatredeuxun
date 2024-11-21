@@ -102,6 +102,7 @@ impl Command for NewDiceCommand {
             .entity_mut(self.entity)
             .insert((
                 RigidBody::Dynamic,
+                // ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
                 Collider::cuboid(dice.size, dice.size, dice.size),
                 LinearDamping(0.5),
                 // AngularDamping(0.5),
