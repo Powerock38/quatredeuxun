@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 use dice::analyze_dices;
-use game::{setup_game_state, CanSkipTurn, GameState, ThrowsLeft};
+use game::{setup_game_state, CanSkipTurn, GameState, RetriesLeft};
 use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
 use player::{
     click_spawns_raycast, manage_selected_dice_animation, pickup_all_player_dices,
@@ -60,7 +60,7 @@ fn main() {
             (pickup_all_player_dices, roll_npc_dices),
         )
         .init_state::<GameState>()
-        .init_resource::<ThrowsLeft>()
+        .init_resource::<RetriesLeft>()
         .init_resource::<CanSkipTurn>()
         .run();
 }

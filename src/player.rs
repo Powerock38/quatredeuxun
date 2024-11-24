@@ -3,7 +3,7 @@ use bevy::{color::palettes::css::BLUE, prelude::*};
 
 use crate::{
     dice::{Dice, InHand, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
-    game::ThrowsLeft,
+    game::RetriesLeft,
     table::{TablePart, TRAY_RADIUS},
 };
 
@@ -114,7 +114,7 @@ pub fn raycast_dices(
     q_table: Query<(), With<TablePart>>,
     q_children: Query<&Children>,
     selected_dice: Option<Res<SelectedDice>>,
-    mut throws: ResMut<ThrowsLeft>,
+    mut retries: ResMut<RetriesLeft>,
 ) {
     for (ray_entity, ray, hits, click_type) in &q_rays {
         'hits: for hit in hits.iter_sorted() {
@@ -126,36 +126,31 @@ pub fn raycast_dices(
                 }
             }
 
-            if throws.0 > 0 {
-                if matches!(click_type, ClickType::Right) {
-                    // Pick up the dices on the table
-                    for entity in &q_dices_on_table {
-                        if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
-                            commands.trigger_targets(PickupDice, entity);
-                            break 'hits;
-                        }
+            if retries.0 > 0 && matches!(click_type, ClickType::Right) {
+                // Pick up the dices on the table
+                for entity in &q_dices_on_table {
+                    if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
+                        commands.trigger_targets(PickupDice, entity);
+                        retries.0 -= 1;
+                        break 'hits;
                     }
                 }
+            }
 
-                // Click table to roll the dices
-                if q_table.get(hit.entity).is_ok() {
-                    if let Some(entity) =
-                        selected_dice.as_ref().map(|selected_dice| selected_dice.0)
-                    {
-                        let point = ray.origin + *ray.direction * hit.time_of_impact;
+            // Click table to roll the dices
+            if q_table.get(hit.entity).is_ok() {
+                if let Some(entity) = selected_dice.as_ref().map(|selected_dice| selected_dice.0) {
+                    let point = ray.origin + *ray.direction * hit.time_of_impact;
 
-                        commands.trigger_targets(RollDice(point), entity);
+                    commands.trigger_targets(RollDice(point), entity);
 
-                        throws.0 -= 1;
-
-                        if let Some(entity) = q_dices_in_hand.iter().find(|e| *e != entity) {
-                            commands.insert_resource(SelectedDice(entity));
-                        } else {
-                            commands.remove_resource::<SelectedDice>();
-                        }
-
-                        break;
+                    if let Some(entity) = q_dices_in_hand.iter().find(|e| *e != entity) {
+                        commands.insert_resource(SelectedDice(entity));
+                    } else {
+                        commands.remove_resource::<SelectedDice>();
                     }
+
+                    break;
                 }
             }
         }
@@ -199,13 +194,11 @@ pub fn manage_selected_dice_animation(
 pub fn pickup_fallen_dices(
     mut commands: Commands,
     query: Query<(Entity, &Transform), With<PlayerDice>>,
-    mut throws: ResMut<ThrowsLeft>,
 ) {
     for (entity, transform) in &query {
         if transform.translation.y < 0.0 {
             // Cassé ! Pick up the dice
             commands.trigger_targets(PickupDice, entity);
-            throws.0 += 1;
         }
     }
 }
@@ -215,5 +208,5 @@ pub fn pickup_all_player_dices(mut commands: Commands, query: Query<Entity, With
         commands.trigger_targets(PickupDice, entity);
     }
 
-    commands.insert_resource(ThrowsLeft::default());
+    commands.insert_resource(RetriesLeft::default());
 }

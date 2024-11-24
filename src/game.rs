@@ -1,11 +1,11 @@
 use bevy::prelude::*;
 
 #[derive(Resource)]
-pub struct ThrowsLeft(pub u8);
+pub struct RetriesLeft(pub u8);
 
-impl Default for ThrowsLeft {
+impl Default for RetriesLeft {
     fn default() -> Self {
-        Self(6)
+        Self(3)
     }
 }
 

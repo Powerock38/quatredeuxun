@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     combination::Combination,
-    game::{CanSkipTurn, GameState, ThrowsLeft},
+    game::{CanSkipTurn, GameState, RetriesLeft},
 };
 
 const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
@@ -15,7 +15,7 @@ struct ScoreText;
 struct SkipTurnButton;
 
 #[derive(Component)]
-struct ThrowsLeftText;
+struct RetriesLeftText;
 
 fn setup_ui(mut commands: Commands) {
     commands.observe(on_display_score);
@@ -67,7 +67,7 @@ fn setup_ui(mut commands: Commands) {
             });
 
             c.spawn((
-                ThrowsLeftText,
+                RetriesLeftText,
                 TextBundle::from_section(
                     "",
                     TextStyle {
@@ -118,12 +118,12 @@ fn update_skip_turn_button(
         (&Interaction, &mut BackgroundColor),
         (Changed<Interaction>, With<SkipTurnButton>),
     >,
-    mut throws: ResMut<ThrowsLeft>,
+    mut retries: ResMut<RetriesLeft>,
 ) {
     for (interaction, mut color) in &mut q_btn {
         match *interaction {
             Interaction::Pressed => {
-                throws.0 = 0;
+                retries.0 = 0;
             }
             Interaction::Hovered => {
                 *color = HOVERED_BUTTON.into();
@@ -135,10 +135,10 @@ fn update_skip_turn_button(
     }
 }
 
-fn update_throws(mut query: Query<&mut Text, With<ThrowsLeftText>>, throws: Res<ThrowsLeft>) {
-    if throws.is_added() || throws.is_changed() {
+fn update_retries(mut query: Query<&mut Text, With<RetriesLeftText>>, retries: Res<RetriesLeft>) {
+    if retries.is_added() || retries.is_changed() {
         let mut text = query.single_mut();
-        text.sections[0].value = format!("Throws left: {}", throws.0);
+        text.sections[0].value = format!("Retries left: {}", retries.0);
     }
 }
 
@@ -157,7 +157,7 @@ impl Plugin for UiPlugin {
             Update,
             (
                 apply_font,
-                update_throws,
+                update_retries,
                 update_skip_turn_button
                     .run_if(in_state(GameState::PlayerRolling))
                     .run_if(|can: Res<CanSkipTurn>| can.0),

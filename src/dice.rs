@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use rand::prelude::*;
 
 use crate::combination::{Combination, DiceResult};
-use crate::game::{CanSkipTurn, GameState, ThrowsLeft};
+use crate::game::{CanSkipTurn, GameState, RetriesLeft};
 use crate::player::PlayerDice;
 use crate::table::TablePart;
 use crate::ui::DisplayScore;
@@ -156,7 +156,7 @@ pub fn on_roll_dice(
 
 pub fn analyze_dices(
     mut commands: Commands,
-    throws: Res<ThrowsLeft>,
+    retries: Res<RetriesLeft>,
     collisions: Res<Collisions>,
     q_table_parts: Query<Entity, With<TablePart>>,
     q_player_dices_on_table: Query<
@@ -236,22 +236,19 @@ pub fn analyze_dices(
         }
 
         GameState::PlayerRolling => {
-            // If player finished rolling (= out of throws) and NPC dices are not moving
-            if throws.0 == 0 && results_npc.len() == NB_DICES {
-                // if player dices are not moving
-                if results_player.len() == NB_DICES {
-                    // calculate the score
+            // If player finished rolling (= out of retries, player dices are not moving) and NPC dices are not moving
+            if retries.0 == 0 && results_npc.len() == NB_DICES && results_player.len() == NB_DICES {
+                // calculate the score
 
-                    let player = Combination::get(results_player);
-                    let npc = Combination::get(results_npc);
+                let player = Combination::get(results_player);
+                let npc = Combination::get(results_npc);
 
-                    let wins = player >= npc;
+                let wins = player >= npc;
 
-                    commands.trigger(DisplayScore::player(npc, player, wins));
+                commands.trigger(DisplayScore::player(npc, player, wins));
 
-                    //TODO: go to shop
-                    next_state.set(GameState::NPCRolling);
-                }
+                //TODO: go to shop
+                next_state.set(GameState::NPCRolling);
             }
         }
 
