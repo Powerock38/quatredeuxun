@@ -45,7 +45,7 @@ impl Dice {
         Transform::from_translation(
             thrower_position
                 + Vec3::new(
-                    (self.i as f32 - NB_DICES as f32 / 2.0 + 0.5) * self.size * 1.2,
+                    (self.i as f32 - NB_DICES as f32 / 2.0 + 0.5) * self.size * 1.6,
                     -6.0,
                     -2.5,
                 ),
@@ -101,12 +101,12 @@ impl Command for NewDiceCommand {
         world
             .entity_mut(self.entity)
             .insert((
+                Name::new(format!("dice_{}", self.i)),
                 RigidBody::Dynamic,
-                // ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
-                Collider::cuboid(dice.size, dice.size, dice.size),
+                ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh)
+                    .without_constructor_for_name("tint")
+                    .with_default_density(5.0),
                 LinearDamping(0.5),
-                // AngularDamping(0.5),
-                ColliderDensity(5.0),
                 SceneBundle {
                     scene: scene_dice,
                     ..default()
@@ -115,11 +115,14 @@ impl Command for NewDiceCommand {
                 InHandBundle::default(),
             ))
             .with_children(|c| {
-                c.spawn(PbrBundle {
-                    material: tint_material,
-                    mesh: tint_mesh,
-                    ..default()
-                });
+                c.spawn((
+                    Name::new("tint"),
+                    PbrBundle {
+                        material: tint_material,
+                        mesh: tint_mesh,
+                        ..default()
+                    },
+                ));
             })
             .observe(on_roll_dice);
     }
@@ -164,6 +167,7 @@ pub fn analyze_dices(
         (Entity, &Dice, &Transform, &AngularVelocity, &LinearVelocity),
         (Without<InHand>, Without<PlayerDice>),
     >,
+    q_children: Query<&Children>,
     state: Res<State<GameState>>,
     mut next_state: ResMut<NextState<GameState>>,
     mut can_skip_turn: ResMut<CanSkipTurn>,
@@ -180,9 +184,11 @@ pub fn analyze_dices(
 
         if linear_velocity.0.length() < MIN_MOVEMENT
             && angular_velocity.0.length() < MIN_MOVEMENT
-            && q_table_parts
-                .iter()
-                .any(|table_part| collisions.contains(entity, table_part))
+            && q_table_parts.iter().any(|table_part| {
+                q_children
+                    .iter_descendants(entity)
+                    .any(|c| collisions.contains(c, table_part))
+            })
         {
             // Determine which face is most aligned with the world up vector
             let mut max_dot = -1.0;

@@ -77,13 +77,15 @@ pub fn punch_table(
     collisions: Res<Collisions>,
     q_table_parts: Query<Entity, With<TablePart>>,
     mut q_dices: Query<(Entity, &mut LinearVelocity), (With<Dice>, Without<InHand>)>,
+    q_children: Query<&Children>,
 ) {
     if button_input.just_pressed(KeyCode::Space) {
         for (entity, mut linear_velocity) in &mut q_dices {
-            if q_table_parts
-                .iter()
-                .any(|table_part| collisions.contains(entity, table_part))
-            {
+            if q_table_parts.iter().any(|table_part| {
+                q_children
+                    .iter_descendants(entity)
+                    .any(|c| collisions.contains(c, table_part))
+            }) {
                 linear_velocity.0 += Vec3::new(0.0, 5.0, 0.0);
             }
         }

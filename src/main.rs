@@ -4,8 +4,8 @@ use dice::analyze_dices;
 use game::{setup_game_state, CanSkipTurn, GameState, ThrowsLeft};
 use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
 use player::{
-    click_spawns_raycast, filter_collisions_in_hand, manage_selected_dice_animation,
-    pickup_all_player_dices, pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
+    click_spawns_raycast, manage_selected_dice_animation, pickup_all_player_dices,
+    pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
 };
 use table::{punch_table, setup};
 use ui::UiPlugin;
@@ -37,6 +37,7 @@ fn main() {
             PhysicsPlugins::default(),
             UiPlugin,
             flycam::FlyCamPlugin,
+            //bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
         ))
         .add_systems(
             Startup,
@@ -58,7 +59,6 @@ fn main() {
             OnEnter(GameState::NPCRolling),
             (pickup_all_player_dices, roll_npc_dices),
         )
-        .add_systems(PostProcessCollisions, filter_collisions_in_hand)
         .init_state::<GameState>()
         .init_resource::<ThrowsLeft>()
         .init_resource::<CanSkipTurn>()

@@ -110,25 +110,30 @@ pub fn raycast_dices(
     mut commands: Commands,
     q_rays: Query<(Entity, &RayCaster, &RayHits, &ClickType)>,
     q_dices_in_hand: Query<Entity, (With<PlayerDice>, With<InHand>)>,
-    q_dices_on_table: Query<(), (With<PlayerDice>, Without<InHand>)>,
+    q_dices_on_table: Query<Entity, (With<PlayerDice>, Without<InHand>)>,
     q_table: Query<(), With<TablePart>>,
+    q_children: Query<&Children>,
     selected_dice: Option<Res<SelectedDice>>,
     mut throws: ResMut<ThrowsLeft>,
 ) {
     for (ray_entity, ray, hits, click_type) in &q_rays {
-        for hit in hits.iter_sorted() {
+        'hits: for hit in hits.iter_sorted() {
             // Select dices in hand
-            if q_dices_in_hand.get(hit.entity).is_ok() {
-                commands.insert_resource(SelectedDice(hit.entity));
-                break;
+            for entity in &q_dices_in_hand {
+                if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
+                    commands.insert_resource(SelectedDice(entity));
+                    break 'hits;
+                }
             }
 
             if throws.0 > 0 {
                 if matches!(click_type, ClickType::Right) {
                     // Pick up the dices on the table
-                    if q_dices_on_table.get(hit.entity).is_ok() {
-                        commands.trigger_targets(PickupDice, hit.entity);
-                        break;
+                    for entity in &q_dices_on_table {
+                        if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
+                            commands.trigger_targets(PickupDice, entity);
+                            break 'hits;
+                        }
                     }
                 }
 
@@ -203,14 +208,6 @@ pub fn pickup_fallen_dices(
             throws.0 += 1;
         }
     }
-}
-
-pub fn filter_collisions_in_hand(
-    mut collisions: ResMut<Collisions>,
-    query: Query<(), (With<PlayerDice>, With<InHand>)>,
-) {
-    collisions
-        .retain(|contacts| !query.contains(contacts.entity1) && !query.contains(contacts.entity2));
 }
 
 pub fn pickup_all_player_dices(mut commands: Commands, query: Query<Entity, With<PlayerDice>>) {

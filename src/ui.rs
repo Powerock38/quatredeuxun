@@ -58,7 +58,7 @@ fn setup_ui(mut commands: Commands) {
             ))
             .with_children(|c| {
                 c.spawn(TextBundle::from_section(
-                    "Skip Turn",
+                    "Stop there",
                     TextStyle {
                         font_size: 40.0,
                         ..default()
