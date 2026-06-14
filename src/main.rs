@@ -4,8 +4,8 @@ use dice::analyze_dices;
 use game::{CanSkipTurn, GameState, RetriesLeft, setup_game_state};
 use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
 use player::{
-    click_spawns_raycast, manage_selected_dice_animation, pickup_all_player_dices,
-    pickup_fallen_dices, raycast_dices, spawn_camera, spawn_player_dices,
+    manage_selected_dice_animation, pickup_all_player_dices, pickup_fallen_dices, spawn_camera,
+    spawn_player_dices, toggle_free_camera,
 };
 use table::{punch_table, setup};
 use ui::UiPlugin;
@@ -36,6 +36,7 @@ fn main() {
             PhysicsPlugins::default(),
             UiPlugin,
             FreeCameraPlugin,
+            MeshPickingPlugin,
         ))
         .add_systems(
             Startup,
@@ -45,12 +46,12 @@ fn main() {
             Update,
             (
                 setup_game_state.run_if(in_state(GameState::Setup)),
-                (pickup_fallen_dices, click_spawns_raycast, raycast_dices)
-                    .run_if(in_state(GameState::PlayerRolling)),
+                (pickup_fallen_dices,).run_if(in_state(GameState::PlayerRolling)),
                 analyze_dices,
                 manage_selected_dice_animation,
                 punch_table,
                 reroll_fallen_npc_dices,
+                toggle_free_camera,
             ),
         )
         .add_systems(

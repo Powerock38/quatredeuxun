@@ -11,8 +11,8 @@ use crate::ui::DisplayScore;
 pub const NB_DICES: usize = 3;
 pub const MIN_NB_DICES: usize = 2;
 const MAX_ANGULAR_SPEED: f32 = 10.0;
-const MIN_FORCE: f32 = 50.0;
-const MAX_FORCE: f32 = 100.0;
+const MIN_FORCE: f32 = 0.5;
+const MAX_FORCE: f32 = 3.0;
 const MIN_MOVEMENT: f32 = 0.3;
 
 #[derive(Component)]
@@ -126,7 +126,6 @@ pub fn on_roll_dice(
     trigger: On<RollDice>,
     mut commands: Commands,
     mut q_dices: Query<(&Transform, &mut AngularVelocity, &mut LinearVelocity), With<Dice>>,
-    time: Res<Time>,
 ) {
     let entity = trigger.entity;
     let (transform, mut angular_velocity, mut linear_velocity) = q_dices.get_mut(entity).unwrap();
@@ -139,7 +138,7 @@ pub fn on_roll_dice(
 
     let trajectory = trigger.target_position - transform.translation;
     let force = trajectory * rng.random_range(MIN_FORCE..MAX_FORCE);
-    linear_velocity.0 = force * time.delta_secs();
+    linear_velocity.0 = force;
 
     angular_velocity.0 = Vec3::new(
         rng.random_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),

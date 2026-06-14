@@ -1,13 +1,13 @@
 use avian3d::prelude::*;
 use bevy::{
-    camera_controller::free_camera::FreeCamera, color::palettes::css::BLUE, prelude::*,
-    window::PrimaryWindow,
+    camera_controller::free_camera::FreeCamera, color::palettes::css::BLUE,
+    picking::pointer::PointerButton, prelude::*,
 };
 
 use crate::{
     dice::{Dice, InHand, InHandBundle, NB_DICES, NewDiceCommand, RollDice},
     game::RetriesLeft,
-    table::{TRAY_RADIUS, TablePart},
+    table::TRAY_RADIUS,
 };
 
 pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TRAY_RADIUS * 1.5, TRAY_RADIUS * 1.5);
@@ -26,9 +26,28 @@ pub struct PickupDice {
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
         Camera3d::default(),
-        FreeCamera::default(),
         Transform::from_translation(PLAYER_POSITION).looking_at(Vec3::ZERO, Dir3::Y),
     ));
+}
+
+pub fn toggle_free_camera(
+    mut commands: Commands,
+    keyboard_input: Res<ButtonInput<KeyCode>>,
+    q_camera: Single<(Entity, Option<&FreeCamera>), With<Camera3d>>,
+) {
+    if keyboard_input.just_pressed(KeyCode::KeyF) {
+        let (camera_entity, free_camera) = *q_camera;
+        if free_camera.is_some() {
+            commands
+                .entity(camera_entity)
+                .insert(
+                    Transform::from_translation(PLAYER_POSITION).looking_at(Vec3::ZERO, Dir3::Y),
+                )
+                .remove::<FreeCamera>();
+        } else {
+            commands.entity(camera_entity).insert(FreeCamera::default());
+        }
+    }
 }
 
 pub fn spawn_player_dices(mut commands: Commands) {
@@ -44,7 +63,8 @@ pub fn spawn_player_dices(mut commands: Commands) {
         commands
             .entity(entity)
             .insert(PlayerDice)
-            .observe(on_pickup_dice);
+            .observe(on_pickup_dice)
+            .observe(on_click_dice);
 
         commands.trigger(PickupDice { entity });
     }
@@ -64,104 +84,56 @@ pub fn on_pickup_dice(
     commands.insert_resource(SelectedDice(entity));
 }
 
-#[derive(Component)]
-pub enum ClickType {
-    Left,
-    Right,
-}
-
-pub fn click_spawns_raycast(
+/// Handles both left-click (select in-hand dice) and right-click (pick up table dice).
+fn on_click_dice(
+    trigger: On<Pointer<Click>>,
     mut commands: Commands,
-    button_input: Res<ButtonInput<MouseButton>>,
-    touches: Res<Touches>,
-    q_camera: Single<(&Camera, &GlobalTransform)>,
-    window: Single<&Window, With<PrimaryWindow>>,
-) {
-    let cursor_position = if button_input.just_pressed(MouseButton::Left)
-        || button_input.just_pressed(MouseButton::Right)
-    {
-        window.cursor_position()
-    } else {
-        touches
-            .iter_just_pressed()
-            .next()
-            .map(bevy::input::touch::Touch::position)
-    };
-
-    let Some(cursor_position) = cursor_position else {
-        return;
-    };
-
-    let (camera, camera_transform) = *q_camera;
-
-    // Calculate a ray pointing from the camera into the world based on the cursor's position.
-    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
-        return;
-    };
-
-    commands.spawn((
-        RayCaster::from_ray(ray),
-        if button_input.just_pressed(MouseButton::Right) {
-            ClickType::Right
-        } else {
-            ClickType::Left
-        },
-    ));
-}
-
-pub fn raycast_dices(
-    mut commands: Commands,
-    q_rays: Query<(Entity, &RayCaster, &RayHits, &ClickType)>,
-    q_dices_in_hand: Query<Entity, (With<PlayerDice>, With<InHand>)>,
-    q_dices_on_table: Query<Entity, (With<PlayerDice>, Without<InHand>)>,
-    q_table: Query<(), With<TablePart>>,
-    q_children: Query<&Children>,
-    selected_dice: Option<Res<SelectedDice>>,
+    q_dices_in_hand: Query<(), (With<PlayerDice>, With<InHand>)>,
+    q_dices_on_table: Query<(), (With<PlayerDice>, Without<InHand>)>,
     mut retries: ResMut<RetriesLeft>,
 ) {
-    for (ray_entity, ray, hits, click_type) in &q_rays {
-        'hits: for hit in hits.iter_sorted() {
-            // Select dices in hand
-            for entity in &q_dices_in_hand {
-                if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
-                    commands.insert_resource(SelectedDice(entity));
-                    break 'hits;
-                }
-            }
+    let entity = trigger.entity;
+    let button = trigger.event().button;
 
-            if retries.0 > 0 && matches!(click_type, ClickType::Right) {
-                // Pick up the dices on the table
-                for entity in &q_dices_on_table {
-                    if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
-                        commands.trigger(PickupDice { entity });
-                        retries.0 -= 1;
-                        break 'hits;
-                    }
-                }
-            }
+    if button == PointerButton::Primary && q_dices_in_hand.get(entity).is_ok() {
+        // Left-click an in-hand dice → select it
+        commands.insert_resource(SelectedDice(entity));
+    } else if button == PointerButton::Secondary
+        && retries.0 > 0
+        && q_dices_on_table.get(entity).is_ok()
+    {
+        // Right-click a table dice → pick it up (costs a retry)
+        commands.trigger(PickupDice { entity });
+        retries.0 -= 1;
+    }
+}
 
-            // Click table to roll the dices
-            if q_table.get(hit.entity).is_ok()
-                && let Some(entity) = selected_dice.as_ref().map(|selected_dice| selected_dice.0)
-            {
-                let point = ray.origin + *ray.direction * hit.distance;
+pub fn on_click_table(
+    trigger: On<Pointer<Click>>,
+    mut commands: Commands,
+    q_dices_in_hand: Query<Entity, (With<PlayerDice>, With<InHand>)>,
+    selected_dice: Option<Res<SelectedDice>>,
+) {
+    if trigger.event().button != PointerButton::Primary {
+        return;
+    }
 
-                commands.trigger(RollDice {
-                    entity,
-                    target_position: point,
-                });
+    let Some(selected_entity) = selected_dice.as_ref().map(|s| s.0) else {
+        return;
+    };
 
-                if let Some(entity) = q_dices_in_hand.iter().find(|e| *e != entity) {
-                    commands.insert_resource(SelectedDice(entity));
-                } else {
-                    commands.remove_resource::<SelectedDice>();
-                }
+    let hit_position = trigger.event().hit.position.unwrap_or_default();
 
-                break;
-            }
-        }
+    commands.trigger(RollDice {
+        entity: selected_entity,
+        target_position: hit_position,
+    });
 
-        commands.entity(ray_entity).despawn();
+    // Auto-select the next dice in hand, or clear the selection
+    if let Some(next) = q_dices_in_hand.iter().find(|&e| e != selected_entity) {
+        commands.insert_resource(SelectedDice(next));
+    } else {
+        commands.remove_resource::<SelectedDice>();
     }
 }
 

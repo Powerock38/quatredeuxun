@@ -1,7 +1,10 @@
 use avian3d::prelude::*;
 use bevy::prelude::*;
 
-use crate::dice::{Dice, InHand};
+use crate::{
+    dice::{Dice, InHand},
+    player::on_click_table,
+};
 
 pub const TRAY_RADIUS: f32 = 10.0;
 pub const TRAY_THICKNESS: f32 = 0.1;
@@ -25,31 +28,35 @@ pub fn setup(
     ));
 
     // Dice tray
-    commands.spawn((
-        TablePart,
-        RigidBody::Static,
-        ColliderConstructor::TrimeshFromMesh,
-        Friction::new(0.9),
-        Mesh3d(meshes.add(Cylinder::new(TRAY_RADIUS, TRAY_THICKNESS))),
-        MeshMaterial3d(materials.add(Color::WHITE)),
-    ));
+    commands
+        .spawn((
+            TablePart,
+            RigidBody::Static,
+            ColliderConstructor::TrimeshFromMesh,
+            Friction::new(0.9),
+            Mesh3d(meshes.add(Cylinder::new(TRAY_RADIUS, TRAY_THICKNESS))),
+            MeshMaterial3d(materials.add(Color::WHITE)),
+        ))
+        .observe(on_click_table);
 
     // dice tray ring
-    commands.spawn((
-        TablePart,
-        RigidBody::Static,
-        ColliderConstructor::TrimeshFromMesh,
-        Friction::new(0.9),
-        Transform::from_xyz(0.0, f32::midpoint(TRAY_RING_HEIGHT, TRAY_THICKNESS), 0.0)
-            .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-        Mesh3d(meshes.add(Extrusion::new(
-            Annulus::new(TRAY_RADIUS, TRAY_RADIUS * 1.1),
-            TRAY_RING_HEIGHT,
-        ))),
-        MeshMaterial3d(materials.add(StandardMaterial::from_color(LinearRgba::new(
-            0.9, 0.2, 0.1, 0.5,
-        )))),
-    ));
+    commands
+        .spawn((
+            TablePart,
+            RigidBody::Static,
+            ColliderConstructor::TrimeshFromMesh,
+            Friction::new(0.9),
+            Transform::from_xyz(0.0, f32::midpoint(TRAY_RING_HEIGHT, TRAY_THICKNESS), 0.0)
+                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+            Mesh3d(meshes.add(Extrusion::new(
+                Annulus::new(TRAY_RADIUS, TRAY_RADIUS * 1.1),
+                TRAY_RING_HEIGHT,
+            ))),
+            MeshMaterial3d(materials.add(StandardMaterial::from_color(LinearRgba::new(
+                0.9, 0.2, 0.1, 0.5,
+            )))),
+        ))
+        .observe(on_click_table);
 
     // Light
     commands.spawn((
