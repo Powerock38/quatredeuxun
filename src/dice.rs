@@ -1,5 +1,4 @@
 use avian3d::prelude::*;
-use bevy::ecs::world::Command;
 use bevy::prelude::*;
 use rand::prelude::*;
 
@@ -53,8 +52,11 @@ impl Dice {
     }
 }
 
-#[derive(Event)]
-pub struct RollDice(pub Vec3);
+#[derive(EntityEvent)]
+pub struct RollDice {
+    pub entity: Entity,
+    pub target_position: Vec3,
+}
 
 #[derive(Component)]
 pub struct InHand;
@@ -94,9 +96,7 @@ impl Command for NewDiceCommand {
         let mut materials = world
             .get_resource_mut::<Assets<StandardMaterial>>()
             .unwrap();
-        let mut tint_color = self.tint_color;
-        tint_color.set_alpha(0.3);
-        let tint_material = materials.add(tint_color);
+        let tint_material = materials.add(self.tint_color.with_alpha(0.3));
 
         world
             .entity_mut(self.entity)
@@ -107,21 +107,15 @@ impl Command for NewDiceCommand {
                     .without_constructor_for_name("tint")
                     .with_default_density(5.0),
                 LinearDamping(0.5),
-                SceneBundle {
-                    scene: scene_dice,
-                    ..default()
-                },
+                SceneRoot(scene_dice),
                 dice,
                 InHandBundle::default(),
             ))
             .with_children(|c| {
                 c.spawn((
                     Name::new("tint"),
-                    PbrBundle {
-                        material: tint_material,
-                        mesh: tint_mesh,
-                        ..default()
-                    },
+                    MeshMaterial3d(tint_material),
+                    Mesh3d(tint_mesh),
                 ));
             })
             .observe(on_roll_dice);
@@ -129,35 +123,35 @@ impl Command for NewDiceCommand {
 }
 
 pub fn on_roll_dice(
-    trigger: Trigger<RollDice>,
+    trigger: On<RollDice>,
     mut commands: Commands,
     mut q_dices: Query<(&Transform, &mut AngularVelocity, &mut LinearVelocity), With<Dice>>,
     time: Res<Time>,
 ) {
-    let entity = trigger.entity();
+    let entity = trigger.entity;
     let (transform, mut angular_velocity, mut linear_velocity) = q_dices.get_mut(entity).unwrap();
 
     // Release the dice from the hand
     commands.entity(entity).remove::<InHandBundle>();
 
     // Roll the dice
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
-    let trajectory = trigger.event().0 - transform.translation;
-    let force = trajectory * rng.gen_range(MIN_FORCE..MAX_FORCE);
-    linear_velocity.0 = force * time.delta_seconds();
+    let trajectory = trigger.target_position - transform.translation;
+    let force = trajectory * rng.random_range(MIN_FORCE..MAX_FORCE);
+    linear_velocity.0 = force * time.delta_secs();
 
     angular_velocity.0 = Vec3::new(
-        rng.gen_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
-        rng.gen_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
-        rng.gen_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
+        rng.random_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
+        rng.random_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
+        rng.random_range(-MAX_ANGULAR_SPEED..MAX_ANGULAR_SPEED),
     );
 }
 
 pub fn analyze_dices(
     mut commands: Commands,
     retries: Res<RetriesLeft>,
-    collisions: Res<Collisions>,
+    collisions: Collisions,
     q_table_parts: Query<Entity, With<TablePart>>,
     q_player_dices_on_table: Query<
         (Entity, &Dice, &Transform, &AngularVelocity, &LinearVelocity),
@@ -235,9 +229,9 @@ pub fn analyze_dices(
             }
         }
 
-        GameState::PlayerRolling => {
+        GameState::PlayerRolling
             // If player finished rolling (= out of retries, player dices are not moving) and NPC dices are not moving
-            if retries.0 == 0 && results_npc.len() == NB_DICES && results_player.len() == NB_DICES {
+            if retries.0 == 0 && results_npc.len() == NB_DICES && results_player.len() == NB_DICES => {
                 // calculate the score
 
                 let player = Combination::get(results_player);
@@ -250,7 +244,6 @@ pub fn analyze_dices(
                 //TODO: go to shop
                 next_state.set(GameState::NPCRolling);
             }
-        }
 
         _ => {}
     }

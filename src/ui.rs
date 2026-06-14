@@ -9,73 +9,45 @@ const NORMAL_BUTTON: Color = Color::srgb(0.15, 0.15, 0.15);
 const HOVERED_BUTTON: Color = Color::srgb(0.25, 0.25, 0.25);
 
 #[derive(Component)]
+#[require(Text::default(), TextFont::from_font_size(50.0))]
 struct ScoreText;
 
 #[derive(Component)]
+#[require(
+    Button,
+    BackgroundColor(NORMAL_BUTTON),
+    Node {
+        padding: UiRect::all(Val::Px(5.0)),
+        height: Val::Px(50.0),
+        border: UiRect::all(Val::Px(2.0)),
+        ..default()
+    },
+    BorderColor::all(Color::WHITE),
+)]
 struct SkipTurnButton;
 
 #[derive(Component)]
+#[require(Text::default(), TextFont::from_font_size(50.0))]
 struct RetriesLeftText;
 
 fn setup_ui(mut commands: Commands) {
-    commands.observe(on_display_score);
+    commands.add_observer(on_display_score);
 
     commands
-        .spawn(NodeBundle {
-            style: Style {
-                flex_direction: FlexDirection::Row,
-                justify_content: JustifyContent::SpaceBetween,
-                width: Val::Percent(100.0),
-                ..default()
-            },
+        .spawn(Node {
+            flex_direction: FlexDirection::Row,
+            justify_content: JustifyContent::SpaceBetween,
+            width: Val::Percent(100.0),
             ..default()
         })
         .with_children(|c| {
-            c.spawn((
-                ScoreText,
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 50.0,
-                        ..default()
-                    },
-                ),
-            ));
+            c.spawn(ScoreText);
 
-            c.spawn((
-                SkipTurnButton,
-                ButtonBundle {
-                    style: Style {
-                        padding: UiRect::all(Val::Px(5.0)),
-                        height: Val::Px(50.0),
-                        border: UiRect::all(Val::Px(2.0)),
-                        ..default()
-                    },
-                    border_color: BorderColor(Color::WHITE),
-                    background_color: NORMAL_BUTTON.into(),
-                    ..default()
-                },
-            ))
-            .with_children(|c| {
-                c.spawn(TextBundle::from_section(
-                    "Stop there",
-                    TextStyle {
-                        font_size: 40.0,
-                        ..default()
-                    },
-                ));
+            c.spawn(SkipTurnButton).with_children(|c| {
+                c.spawn((Text("Stop there".into()), TextFont::from_font_size(40.0)));
             });
 
-            c.spawn((
-                RetriesLeftText,
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 50.0,
-                        ..default()
-                    },
-                ),
-            ));
+            c.spawn(RetriesLeftText);
         });
 }
 
@@ -98,11 +70,10 @@ impl DisplayScore {
     }
 }
 
-fn on_display_score(trigger: Trigger<DisplayScore>, mut query: Query<&mut Text, With<ScoreText>>) {
+fn on_display_score(trigger: On<DisplayScore>, mut text: Single<&mut Text, With<ScoreText>>) {
     let score = trigger.event();
-    let mut text = query.single_mut();
 
-    text.sections[0].value = match &score.player {
+    text.0 = match &score.player {
         Some((player, wins)) => format!(
             "To beat: {}.\nYou scored: {}\n{}",
             score.npc,
@@ -135,18 +106,18 @@ fn update_skip_turn_button(
     }
 }
 
-fn update_retries(mut query: Query<&mut Text, With<RetriesLeftText>>, retries: Res<RetriesLeft>) {
+fn update_retries(mut text: Single<&mut Text, With<RetriesLeftText>>, retries: Res<RetriesLeft>) {
     if retries.is_added() || retries.is_changed() {
-        let mut text = query.single_mut();
-        text.sections[0].value = format!("Retries left: {}", retries.0);
+        text.0 = format!("Retries left: {}", retries.0);
     }
 }
 
-pub fn apply_font(asset_server: Res<AssetServer>, mut query: Query<&mut Text, Added<Text>>) {
-    for mut text in &mut query {
-        for section in &mut text.sections {
-            section.style.font = asset_server.load("JqkasWild.ttf");
-        }
+pub fn apply_font(
+    asset_server: Res<AssetServer>,
+    mut query: Query<&mut TextFont, Added<TextFont>>,
+) {
+    for mut font in &mut query {
+        font.font = asset_server.load("JqkasWild.ttf");
     }
 }
 

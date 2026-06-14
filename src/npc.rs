@@ -2,21 +2,23 @@ use bevy::{color::palettes::css::RED, prelude::*};
 use rand::prelude::*;
 
 use crate::{
-    dice::{Dice, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
+    dice::{Dice, InHandBundle, NB_DICES, NewDiceCommand, RollDice},
     player::PlayerDice,
     table::TRAY_RADIUS,
 };
 
 pub const NPC_POSITION: Vec3 = Vec3::new(0.0, TRAY_RADIUS * 1.5, -TRAY_RADIUS * 1.5);
 
-#[derive(Event)]
-pub struct NPCThrow;
+#[derive(EntityEvent)]
+pub struct NPCThrow {
+    entity: Entity,
+}
 
 pub fn spawn_npc_dices(mut commands: Commands) {
     for i in 0..NB_DICES {
         let entity = commands.spawn_empty().id();
 
-        commands.add(NewDiceCommand {
+        commands.queue(NewDiceCommand {
             entity,
             i,
             tint_color: RED.into(),
@@ -38,31 +40,31 @@ pub fn roll_npc_dices(
     mut q_dices: Query<Entity, (With<Dice>, Without<PlayerDice>)>,
 ) {
     for entity in &mut q_dices {
-        commands.trigger_targets(NPCThrow, entity);
+        commands.trigger(NPCThrow { entity });
     }
 }
 
 pub fn on_npc_throw(
-    trigger: Trigger<NPCThrow>,
+    trigger: On<NPCThrow>,
     mut commands: Commands,
     mut q_dices: Query<(&Dice, &mut Transform), Without<PlayerDice>>,
 ) {
-    let entity = trigger.entity();
+    let entity = trigger.entity;
     let (dice, mut transform) = q_dices.get_mut(entity).unwrap();
 
-    let mut rng = thread_rng();
+    let mut rng = rand::rng();
 
     commands.entity(entity).insert(InHandBundle::default());
     *transform = dice.in_hand_transform(NPC_POSITION);
 
-    commands.trigger_targets(
-        RollDice(Vec3::new(
-            rng.gen_range(-TRAY_RADIUS..=TRAY_RADIUS),
-            0.0,
-            rng.gen_range(-TRAY_RADIUS..=TRAY_RADIUS),
-        )),
+    commands.trigger(RollDice {
         entity,
-    );
+        target_position: Vec3::new(
+            rng.random_range(-TRAY_RADIUS..=TRAY_RADIUS),
+            0.0,
+            rng.random_range(-TRAY_RADIUS..=TRAY_RADIUS),
+        ),
+    });
 }
 
 pub fn reroll_fallen_npc_dices(
@@ -71,7 +73,7 @@ pub fn reroll_fallen_npc_dices(
 ) {
     for (entity, transform) in &mut q_dices {
         if transform.translation.y < 0.0 {
-            commands.trigger_targets(NPCThrow, entity);
+            commands.trigger(NPCThrow { entity });
         }
     }
 }

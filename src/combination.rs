@@ -20,6 +20,19 @@ pub enum Combination {
 }
 
 impl Combination {
+    pub fn rank(&self) -> u32 {
+        match self {
+            Combination::Any(_) => 0,
+            Combination::LowRoll(_) => 1,
+            Combination::HighRoll(_) => 2,
+            Combination::HighestRoll(_) => 3,
+            Combination::Straight(_, _) => 4,
+            Combination::Strike(_) => 5,
+            Combination::Ace(_) => 6,
+            Combination::FourTwoOne(_) => 7,
+        }
+    }
+
     pub fn get(mut results: Vec<DiceResult>) -> Self {
         assert!(results.len() >= MIN_NB_DICES);
 
@@ -32,7 +45,7 @@ impl Combination {
         }
 
         // Check for an "Ace" (any dice + all 1)
-        if results.iter().filter(|&d| *d == 1).count() == results.len() - 1 {
+        if bytecount::count(&results, 1) == results.len() - 1 {
             return Combination::Ace(*results.first().unwrap());
         }
 
@@ -93,10 +106,6 @@ impl Combination {
             Combination::Any(_) => 0,
         }
     }
-
-    unsafe fn discriminant(&self) -> u8 {
-        *std::ptr::from_ref::<Self>(self).cast::<u8>()
-    }
 }
 
 impl PartialOrd for Combination {
@@ -107,14 +116,10 @@ impl PartialOrd for Combination {
 
 impl Ord for Combination {
     fn cmp(&self, other: &Self) -> Ordering {
-        let mut ord = self.score().cmp(&other.score());
-
-        if ord == Ordering::Equal {
-            ord = unsafe { self.discriminant().cmp(&other.discriminant()) };
-        }
-
-        if ord == Ordering::Equal {
-            ord = match (self, other) {
+        self.score()
+            .cmp(&other.score())
+            .then_with(|| self.rank().cmp(&other.rank()))
+            .then_with(|| match (self, other) {
                 (Combination::Any(a), Combination::Any(b))
                 | (Combination::HighRoll(a), Combination::HighRoll(b))
                 | (Combination::LowRoll(a), Combination::LowRoll(b)) => {
@@ -130,11 +135,8 @@ impl Ord for Combination {
                     Combination::Straight(other_dice, other_len),
                 ) => len.cmp(other_len).then_with(|| dice.cmp(other_dice)),
 
-                _ => ord,
-            };
-        }
-
-        ord
+                _ => Ordering::Equal,
+            })
     }
 }
 

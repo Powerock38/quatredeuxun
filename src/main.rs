@@ -1,7 +1,7 @@
 use avian3d::prelude::*;
-use bevy::prelude::*;
+use bevy::{camera_controller::free_camera::FreeCameraPlugin, prelude::*};
 use dice::analyze_dices;
-use game::{setup_game_state, CanSkipTurn, GameState, RetriesLeft};
+use game::{CanSkipTurn, GameState, RetriesLeft, setup_game_state};
 use npc::{reroll_fallen_npc_dices, roll_npc_dices, spawn_npc_dices};
 use player::{
     click_spawns_raycast, manage_selected_dice_animation, pickup_all_player_dices,
@@ -12,7 +12,6 @@ use ui::UiPlugin;
 
 mod combination;
 mod dice;
-mod flycam;
 mod game;
 mod npc;
 mod player;
@@ -36,8 +35,7 @@ fn main() {
                 }),
             PhysicsPlugins::default(),
             UiPlugin,
-            flycam::FlyCamPlugin,
-            //bevy_inspector_egui::quick::WorldInspectorPlugin::new(),
+            FreeCameraPlugin,
         ))
         .add_systems(
             Startup,

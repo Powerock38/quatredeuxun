@@ -20,11 +20,8 @@ pub fn setup(
     commands.spawn((
         RigidBody::Static,
         ColliderConstructorHierarchy::new(ColliderConstructor::ConvexHullFromMesh),
-        SceneBundle {
-            scene: asset_server.load(GltfAssetLabel::Scene(0).from_asset("table.glb")),
-            transform: Transform::from_xyz(0.0, -10.0, 0.0).with_scale(Vec3::splat(10.0)),
-            ..default()
-        },
+        Transform::from_xyz(0.0, -10.0, 0.0).with_scale(Vec3::splat(10.0)),
+        SceneRoot(asset_server.load(GltfAssetLabel::Scene(0).from_asset("table.glb"))),
     ));
 
     // Dice tray
@@ -33,11 +30,8 @@ pub fn setup(
         RigidBody::Static,
         ColliderConstructor::TrimeshFromMesh,
         Friction::new(0.9),
-        PbrBundle {
-            mesh: meshes.add(Cylinder::new(TRAY_RADIUS, TRAY_THICKNESS)),
-            material: materials.add(Color::WHITE),
-            ..default()
-        },
+        Mesh3d(meshes.add(Cylinder::new(TRAY_RADIUS, TRAY_THICKNESS))),
+        MeshMaterial3d(materials.add(Color::WHITE)),
     ));
 
     // dice tray ring
@@ -46,35 +40,31 @@ pub fn setup(
         RigidBody::Static,
         ColliderConstructor::TrimeshFromMesh,
         Friction::new(0.9),
-        PbrBundle {
-            transform: Transform::from_xyz(0.0, (TRAY_RING_HEIGHT + TRAY_THICKNESS) / 2.0, 0.0)
-                .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
-            mesh: meshes.add(Extrusion::new(
-                Annulus::new(TRAY_RADIUS, TRAY_RADIUS * 1.1),
-                TRAY_RING_HEIGHT,
-            )),
-            material: materials.add(StandardMaterial::from_color(LinearRgba::new(
-                0.9, 0.2, 0.1, 0.5,
-            ))),
-            ..default()
-        },
+        Transform::from_xyz(0.0, f32::midpoint(TRAY_RING_HEIGHT, TRAY_THICKNESS), 0.0)
+            .with_rotation(Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2)),
+        Mesh3d(meshes.add(Extrusion::new(
+            Annulus::new(TRAY_RADIUS, TRAY_RADIUS * 1.1),
+            TRAY_RING_HEIGHT,
+        ))),
+        MeshMaterial3d(materials.add(StandardMaterial::from_color(LinearRgba::new(
+            0.9, 0.2, 0.1, 0.5,
+        )))),
     ));
 
     // Light
-    commands.spawn(PointLightBundle {
-        point_light: PointLight {
+    commands.spawn((
+        Transform::from_xyz(0.0, TRAY_RING_HEIGHT * 3.0, 0.0),
+        PointLight {
             shadows_enabled: true,
             intensity: 2_000_000.0,
             ..default()
         },
-        transform: Transform::from_xyz(0.0, TRAY_RING_HEIGHT * 3.0, 0.0),
-        ..default()
-    });
+    ));
 }
 
 pub fn punch_table(
     button_input: Res<ButtonInput<KeyCode>>,
-    collisions: Res<Collisions>,
+    collisions: Collisions,
     q_table_parts: Query<Entity, With<TablePart>>,
     mut q_dices: Query<(Entity, &mut LinearVelocity), (With<Dice>, Without<InHand>)>,
     q_children: Query<&Children>,

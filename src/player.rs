@@ -1,10 +1,13 @@
 use avian3d::prelude::*;
-use bevy::{color::palettes::css::BLUE, prelude::*};
+use bevy::{
+    camera_controller::free_camera::FreeCamera, color::palettes::css::BLUE, prelude::*,
+    window::PrimaryWindow,
+};
 
 use crate::{
-    dice::{Dice, InHand, InHandBundle, NewDiceCommand, RollDice, NB_DICES},
+    dice::{Dice, InHand, InHandBundle, NB_DICES, NewDiceCommand, RollDice},
     game::RetriesLeft,
-    table::{TablePart, TRAY_RADIUS},
+    table::{TRAY_RADIUS, TablePart},
 };
 
 pub const PLAYER_POSITION: Vec3 = Vec3::new(0.0, TRAY_RADIUS * 1.5, TRAY_RADIUS * 1.5);
@@ -15,16 +18,16 @@ pub struct PlayerDice;
 #[derive(Resource)]
 pub struct SelectedDice(pub Entity);
 
-#[derive(Event)]
-pub struct PickupDice;
+#[derive(EntityEvent)]
+pub struct PickupDice {
+    pub entity: Entity,
+}
 
 pub fn spawn_camera(mut commands: Commands) {
     commands.spawn((
-        crate::flycam::FlyCam,
-        Camera3dBundle {
-            transform: Transform::from_translation(PLAYER_POSITION).looking_at(Vec3::ZERO, Dir3::Y),
-            ..default()
-        },
+        Camera3d::default(),
+        FreeCamera::default(),
+        Transform::from_translation(PLAYER_POSITION).looking_at(Vec3::ZERO, Dir3::Y),
     ));
 }
 
@@ -32,7 +35,7 @@ pub fn spawn_player_dices(mut commands: Commands) {
     for i in 0..NB_DICES {
         let entity = commands.spawn_empty().id();
 
-        commands.add(NewDiceCommand {
+        commands.queue(NewDiceCommand {
             entity,
             i,
             tint_color: BLUE.into(),
@@ -43,16 +46,16 @@ pub fn spawn_player_dices(mut commands: Commands) {
             .insert(PlayerDice)
             .observe(on_pickup_dice);
 
-        commands.trigger_targets(PickupDice, entity);
+        commands.trigger(PickupDice { entity });
     }
 }
 
 pub fn on_pickup_dice(
-    trigger: Trigger<PickupDice>,
+    trigger: On<PickupDice>,
     mut commands: Commands,
     mut q_dices: Query<(&Dice, &mut Transform), With<PlayerDice>>,
 ) {
-    let entity = trigger.entity();
+    let entity = trigger.entity;
     let (dice, mut transform) = q_dices.get_mut(entity).unwrap();
 
     commands.entity(entity).insert(InHandBundle::default());
@@ -71,28 +74,28 @@ pub fn click_spawns_raycast(
     mut commands: Commands,
     button_input: Res<ButtonInput<MouseButton>>,
     touches: Res<Touches>,
-    camera_query: Query<(&Camera, &GlobalTransform)>,
-    windows: Query<&Window>,
+    q_camera: Single<(&Camera, &GlobalTransform)>,
+    window: Single<&Window, With<PrimaryWindow>>,
 ) {
     let cursor_position = if button_input.just_pressed(MouseButton::Left)
         || button_input.just_pressed(MouseButton::Right)
     {
-        windows.single().cursor_position()
+        window.cursor_position()
     } else {
         touches
             .iter_just_pressed()
             .next()
-            .map(|touch| touch.position())
+            .map(bevy::input::touch::Touch::position)
     };
 
     let Some(cursor_position) = cursor_position else {
         return;
     };
 
-    let (camera, camera_transform) = camera_query.single();
+    let (camera, camera_transform) = *q_camera;
 
     // Calculate a ray pointing from the camera into the world based on the cursor's position.
-    let Some(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
+    let Ok(ray) = camera.viewport_to_world(camera_transform, cursor_position) else {
         return;
     };
 
@@ -130,7 +133,7 @@ pub fn raycast_dices(
                 // Pick up the dices on the table
                 for entity in &q_dices_on_table {
                     if q_children.iter_descendants(entity).any(|c| c == hit.entity) {
-                        commands.trigger_targets(PickupDice, entity);
+                        commands.trigger(PickupDice { entity });
                         retries.0 -= 1;
                         break 'hits;
                     }
@@ -138,20 +141,23 @@ pub fn raycast_dices(
             }
 
             // Click table to roll the dices
-            if q_table.get(hit.entity).is_ok() {
-                if let Some(entity) = selected_dice.as_ref().map(|selected_dice| selected_dice.0) {
-                    let point = ray.origin + *ray.direction * hit.time_of_impact;
+            if q_table.get(hit.entity).is_ok()
+                && let Some(entity) = selected_dice.as_ref().map(|selected_dice| selected_dice.0)
+            {
+                let point = ray.origin + *ray.direction * hit.distance;
 
-                    commands.trigger_targets(RollDice(point), entity);
+                commands.trigger(RollDice {
+                    entity,
+                    target_position: point,
+                });
 
-                    if let Some(entity) = q_dices_in_hand.iter().find(|e| *e != entity) {
-                        commands.insert_resource(SelectedDice(entity));
-                    } else {
-                        commands.remove_resource::<SelectedDice>();
-                    }
-
-                    break;
+                if let Some(entity) = q_dices_in_hand.iter().find(|e| *e != entity) {
+                    commands.insert_resource(SelectedDice(entity));
+                } else {
+                    commands.remove_resource::<SelectedDice>();
                 }
+
+                break;
             }
         }
 
@@ -198,14 +204,14 @@ pub fn pickup_fallen_dices(
     for (entity, transform) in &query {
         if transform.translation.y < 0.0 {
             // Cassé ! Pick up the dice
-            commands.trigger_targets(PickupDice, entity);
+            commands.trigger(PickupDice { entity });
         }
     }
 }
 
 pub fn pickup_all_player_dices(mut commands: Commands, query: Query<Entity, With<PlayerDice>>) {
     for entity in &query {
-        commands.trigger_targets(PickupDice, entity);
+        commands.trigger(PickupDice { entity });
     }
 
     commands.insert_resource(RetriesLeft::default());
